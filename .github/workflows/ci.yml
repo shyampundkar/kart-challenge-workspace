@@ -1,0 +1,518 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/** ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  GO_VERSION: '1.23.2'
+
+jobs:
+  # Detect which modules changed
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      database-migration: ${{ steps.filter.outputs.database-migration }}
+      database-load: ${{ steps.filter.outputs.database-load }}
+      order-food: ${{ steps.filter.outputs.order-food }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            database-migration:
+              - 'database-migration/**'
+            database-load:
+              - 'database-load/**'
+            order-food:
+              - 'order-food/**'
+
+  # Build and test database-migration
+  build-database-migration:
+    needs: changes
+    if: needs.changes.outputs.database-migration == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./database-migration
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: database-migration/go.sum
+
+      - name: Install Go tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install github.com/gordonklaus/ineffassign@latest
+          go install github.com/client9/misspell/cmd/misspell@latest
+          go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Check go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Run goimports
+        run: |
+          goimports -w .
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not properly imported. Run 'goimports -w .'"
+            git diff
+            exit 1
+          fi
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run 'go fmt ./...'"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet -v ./...
+
+      - name: Run staticcheck
+        run: staticcheck -checks=all ./...
+
+      - name: Run ineffassign
+        run: ineffassign ./...
+
+      - name: Check for misspellings
+        run: misspell -error .
+
+      - name: Build
+        run: go build -v -o bin/database-migration ./cmd/main.go
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Generate coverage report
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Calculate coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./database-migration/coverage.out
+          flags: database-migration
+          name: database-migration-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-migration-coverage-report
+          path: database-migration/coverage.html
+          retention-days: 30
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = '${{ steps.coverage.outputs.coverage }}';
+            const comment = `## 📊 Code Coverage Report - database-migration\n\nCoverage: **${coverage}%**\n\n[View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+
+  # Build and test database-load
+  build-database-load:
+    needs: changes
+    if: needs.changes.outputs.database-load == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./database-load
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: database-load/go.sum
+
+      - name: Install Go tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install github.com/gordonklaus/ineffassign@latest
+          go install github.com/client9/misspell/cmd/misspell@latest
+          go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Check go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Run goimports
+        run: |
+          goimports -w .
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not properly imported. Run 'goimports -w .'"
+            git diff
+            exit 1
+          fi
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run 'go fmt ./...'"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet -v ./...
+
+      - name: Run staticcheck
+        run: staticcheck -checks=all ./...
+
+      - name: Run ineffassign
+        run: ineffassign ./...
+
+      - name: Check for misspellings
+        run: misspell -error .
+
+      - name: Build
+        run: go build -v -o bin/database-load ./cmd/main.go
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Generate coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Calculate coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./database-load/coverage.out
+          flags: database-load
+          name: database-load-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-load-coverage-report
+          path: database-load/coverage.html
+          retention-days: 30
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = '${{ steps.coverage.outputs.coverage }}';
+            const comment = `## 📊 Code Coverage Report - database-load\n\nCoverage: **${coverage}%**\n\n[View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+
+  # Build and test order-food
+  build-order-food:
+    needs: changes
+    if: needs.changes.outputs.order-food == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./order-food
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: order-food/go.sum
+
+      - name: Install Go tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install github.com/gordonklaus/ineffassign@latest
+          go install github.com/client9/misspell/cmd/misspell@latest
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Check go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Run goimports
+        run: |
+          goimports -w .
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not properly imported. Run 'goimports -w .'"
+            git diff
+            exit 1
+          fi
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run 'go fmt ./...'"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet -v ./...
+
+      - name: Run staticcheck
+        run: staticcheck -checks=all ./...
+
+      - name: Run ineffassign
+        run: ineffassign ./...
+
+      - name: Check for misspellings
+        run: misspell -error .
+
+      - name: Run gosec security scanner
+        run: gosec -fmt=json -out=gosec-report.json ./...
+        continue-on-error: true
+
+      - name: Upload gosec report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-security-report
+          path: order-food/gosec-report.json
+          retention-days: 30
+
+      - name: Build
+        run: go build -v -o bin/order-food ./cmd/main.go
+
+      - name: Build with optimization
+        run: |
+          go build -ldflags="-s -w" -o bin/order-food-optimized ./cmd/main.go
+          ls -lh bin/
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Run benchmarks
+        run: go test -bench=. -benchmem -run=^$ ./... | tee benchmark.txt
+        continue-on-error: true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: order-food/benchmark.txt
+          retention-days: 30
+
+      - name: Generate coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Calculate coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+
+          # Check if coverage meets threshold
+          THRESHOLD=70
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "::warning::Coverage $COVERAGE% is below threshold $THRESHOLD%"
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./order-food/coverage.out
+          flags: order-food
+          name: order-food-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: order-food-coverage-report
+          path: order-food/coverage.html
+          retention-days: 30
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = '${{ steps.coverage.outputs.coverage }}';
+            const threshold = 70;
+            const emoji = coverage >= threshold ? '✅' : '⚠️';
+            const status = coverage >= threshold ? 'Meets threshold' : 'Below threshold';
+
+            const comment = `## 📊 Code Coverage Report - order-food\n\n${emoji} Coverage: **${coverage}%** (${status}: ${threshold}%)\n\n[View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n[Download HTML Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: order-food-binaries
+          path: |
+            order-food/bin/order-food
+            order-food/bin/order-food-optimized
+          retention-days: 7
+
+  # Security scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      needs.changes.outputs.database-migration == 'true' ||
+      needs.changes.outputs.database-load == 'true' ||
+      needs.changes.outputs.order-food == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Lint and validate
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run golangci-lint for database-migration
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: database-migration
+          args: --timeout=5m --out-format=colored-line-number
+
+      - name: Run golangci-lint for database-load
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: database-load
+          args: --timeout=5m --out-format=colored-line-number
+
+      - name: Run golangci-lint for order-food
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: order-food
+          args: --timeout=5m --out-format=colored-line-number
+
+  # Summary job
+  ci-summary:
+    runs-on: ubuntu-latest
+    needs: [build-database-migration, build-database-load, build-order-food, security-scan, lint]
+    if: always()
+    steps:
+      - name: CI Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = ${{ toJSON(needs) }};
+            let summary = '# CI Pipeline Summary\n\n';
+            let allPassed = true;
+
+            summary += '| Job | Status |\n';
+            summary += '|-----|--------|\n';
+
+            for (const [jobName, jobData] of Object.entries(jobs)) {
+              const status = jobData.result === 'success' ? '✅ Pass' :
+                           jobData.result === 'skipped' ? '⏭️ Skip' : '❌ Fail';
+              summary += `| ${jobName} | ${status} |\n`;
+              if (jobData.result === 'failure') {
+                allPassed = false;
+              }
+            }
+
+            summary += '\n---\n\n';
+
+            if (allPassed) {
+              summary += '✅ **All checks passed!**';
+            } else {
+              summary += '❌ **Some checks failed. Please review the logs.**';
+            }
+
+            await core.summary
+              .addRaw(summary)
+              .write();

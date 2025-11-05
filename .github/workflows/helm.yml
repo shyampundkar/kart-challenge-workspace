@@ -1,0 +1,195 @@
+name: Helm Chart Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**/helm/**'
+      - '.github/workflows/helm.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**/helm/**'
+      - '.github/workflows/helm.yml'
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Install helm-docs
+        run: |
+          cd /tmp
+          wget https://github.com/norwoodj/helm-docs/releases/download/v1.11.0/helm-docs_1.11.0_Linux_x86_64.tar.gz
+          tar -xvf helm-docs_1.11.0_Linux_x86_64.tar.gz
+          sudo mv helm-docs /usr/local/bin/
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+
+      - name: Lint database-migration chart
+        run: |
+          helm lint database-migration/helm
+          ct lint --charts database-migration/helm --validate-maintainers=false
+
+      - name: Lint database-load chart
+        run: |
+          helm lint database-load/helm
+          ct lint --charts database-load/helm --validate-maintainers=false
+
+      - name: Lint order-food chart
+        run: |
+          helm lint order-food/helm
+          ct lint --charts order-food/helm --validate-maintainers=false
+
+      - name: Template database-migration chart
+        run: |
+          helm template database-migration database-migration/helm > /tmp/database-migration.yaml
+          cat /tmp/database-migration.yaml
+
+      - name: Template database-load chart
+        run: |
+          helm template database-load database-load/helm > /tmp/database-load.yaml
+          cat /tmp/database-load.yaml
+
+      - name: Template order-food chart
+        run: |
+          helm template order-food order-food/helm > /tmp/order-food.yaml
+          cat /tmp/order-food.yaml
+
+      - name: Validate Kubernetes manifests
+        uses: instrumenta/kubeval-action@master
+        with:
+          files: |
+            /tmp/database-migration.yaml
+            /tmp/database-load.yaml
+            /tmp/order-food.yaml
+
+  test-install:
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Kind cluster
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: test-cluster
+          wait: 120s
+
+      - name: Verify cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Build Docker images for Kind
+        run: |
+          docker build -t database-migration:test ./database-migration
+          docker build -t database-load:test ./database-load
+          docker build -t order-food:test ./order-food
+
+      - name: Load images into Kind
+        run: |
+          kind load docker-image database-migration:test --name test-cluster
+          kind load docker-image database-load:test --name test-cluster
+          kind load docker-image order-food:test --name test-cluster
+
+      - name: Install database-migration chart
+        run: |
+          helm install database-migration ./database-migration/helm \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --wait --timeout 2m
+
+      - name: Install database-load chart
+        run: |
+          helm install database-load ./database-load/helm \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --wait --timeout 2m
+
+      - name: Install order-food chart
+        run: |
+          helm install order-food ./order-food/helm \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --wait --timeout 2m
+
+      - name: Verify deployments
+        run: |
+          kubectl get all
+          kubectl get jobs
+          kubectl get deployments
+
+      - name: Test order-food service
+        run: |
+          # Port forward in background
+          kubectl port-forward svc/order-food 8080:80 &
+          sleep 5
+
+          # Test health endpoint
+          curl --retry 5 --retry-delay 2 http://localhost:8080/health
+
+          # Test API endpoint
+          curl --retry 5 --retry-delay 2 http://localhost:8080/api/product
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Database Migration Logs ==="
+          kubectl logs -l app.kubernetes.io/name=database-migration --tail=100 || true
+
+          echo "=== Database Load Logs ==="
+          kubectl logs -l app.kubernetes.io/name=database-load --tail=100 || true
+
+          echo "=== Order Food Logs ==="
+          kubectl logs -l app.kubernetes.io/name=order-food --tail=100 || true
+
+          echo "=== All Pods ==="
+          kubectl get pods
+
+          echo "=== Describe Pods ==="
+          kubectl describe pods
+
+  package-charts:
+    runs-on: ubuntu-latest
+    needs: test-install
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Package charts
+        run: |
+          mkdir -p charts
+          helm package database-migration/helm -d charts/
+          helm package database-load/helm -d charts/
+          helm package order-food/helm -d charts/
+          helm repo index charts/
+
+      - name: Upload chart packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-charts
+          path: charts/
+          retention-days: 30
