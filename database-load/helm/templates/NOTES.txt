@@ -1,0 +1,7 @@
+1. Database load job has been deployed to your cluster.
+
+2. Check the status of the load job:
+   kubectl get jobs -l "app.kubernetes.io/name={{ include "database-load.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
+
+3. View the load job logs:
+   kubectl logs -l "app.kubernetes.io/name={{ include "database-load.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"

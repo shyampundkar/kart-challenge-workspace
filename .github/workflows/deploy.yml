@@ -1,0 +1,145 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      version:
+        description: 'Version/tag to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          # This is a placeholder. In production, you would:
+          # 1. Get kubeconfig from secrets
+          # 2. Or use cloud-specific auth (AWS, GCP, Azure)
+          echo "Configuring kubectl for ${{ inputs.environment }}"
+          # Example for different environments:
+          # kubectl config use-context ${{ inputs.environment }}
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy database-migration
+        run: |
+          helm upgrade --install database-migration ./database-migration/helm \
+            --namespace ${{ inputs.environment }} \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/database-migration \
+            --set image.tag=${{ steps.tag.outputs.tag }} \
+            --set image.pullPolicy=Always \
+            --wait \
+            --timeout 5m
+
+      - name: Deploy database-load
+        run: |
+          helm upgrade --install database-load ./database-load/helm \
+            --namespace ${{ inputs.environment }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/database-load \
+            --set image.tag=${{ steps.tag.outputs.tag }} \
+            --set image.pullPolicy=Always \
+            --wait \
+            --timeout 5m
+
+      - name: Deploy order-food
+        run: |
+          helm upgrade --install order-food ./order-food/helm \
+            --namespace ${{ inputs.environment }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/order-food \
+            --set image.tag=${{ steps.tag.outputs.tag }} \
+            --set image.pullPolicy=Always \
+            --wait \
+            --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          echo "Checking deployment status..."
+          kubectl get all -n ${{ inputs.environment }}
+
+          echo "Waiting for order-food to be ready..."
+          kubectl wait --for=condition=available --timeout=300s \
+            deployment/order-food -n ${{ inputs.environment }}
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+
+          # Port forward in background
+          kubectl port-forward -n ${{ inputs.environment }} svc/order-food 8080:80 &
+          PF_PID=$!
+          sleep 5
+
+          # Test health endpoint
+          if ! curl --fail --max-time 10 http://localhost:8080/health; then
+            echo "Health check failed!"
+            kill $PF_PID
+            exit 1
+          fi
+
+          # Test API endpoint
+          if ! curl --fail --max-time 10 http://localhost:8080/api/product; then
+            echo "API test failed!"
+            kill $PF_PID
+            exit 1
+          fi
+
+          kill $PF_PID
+          echo "Smoke tests passed!"
+
+      - name: Create deployment notification
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment.id,
+              state: 'success',
+              environment: '${{ inputs.environment }}',
+              description: 'Deployment successful'
+            });
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, rolling back..."
+          helm rollback order-food -n ${{ inputs.environment }}
+          helm rollback database-load -n ${{ inputs.environment }}
+          helm rollback database-migration -n ${{ inputs.environment }}

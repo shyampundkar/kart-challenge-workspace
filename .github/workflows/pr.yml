@@ -1,0 +1,159 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-info:
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR Information
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            core.info(`PR #${pr.number}: ${pr.title}`);
+            core.info(`Author: ${pr.user.login}`);
+            core.info(`Base: ${pr.base.ref} <- Head: ${pr.head.ref}`);
+            core.info(`Changed files: ${pr.changed_files}`);
+            core.info(`Additions: ${pr.additions}, Deletions: ${pr.deletions}`);
+
+  validate-pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+
+  check-conflicts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for merge conflicts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            if (pr.mergeable === false) {
+              core.setFailed('This PR has merge conflicts. Please resolve them.');
+            } else if (pr.mergeable === null) {
+              core.warning('Mergeable status is unknown. GitHub is still calculating.');
+            } else {
+              core.info('No merge conflicts detected.');
+            }
+
+  code-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            **/*.go
+            **/*.yaml
+            **/*.yml
+
+      - name: List changed files
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+
+      - name: Check for TODOs in changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Checking for TODO comments..."
+          files="${{ steps.changed-files.outputs.all_changed_files }}"
+          todos_found=false
+
+          for file in $files; do
+            if [ -f "$file" ]; then
+              if grep -n "TODO\|FIXME\|XXX" "$file"; then
+                todos_found=true
+                echo "⚠️  Found TODO/FIXME in: $file"
+              fi
+            fi
+          done
+
+          if [ "$todos_found" = true ]; then
+            echo "::warning::TODO/FIXME comments found in PR. Consider addressing them."
+          fi
+
+  size-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label PR by size
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: 10
+          s_label: 'size/s'
+          s_max_size: 100
+          m_label: 'size/m'
+          m_max_size: 500
+          l_label: 'size/l'
+          l_max_size: 1000
+          xl_label: 'size/xl'
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [pr-info, validate-pr-title, check-conflicts]
+    if: always()
+    steps:
+      - name: PR Validation Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = ${{ toJSON(needs) }};
+            let allPassed = true;
+            let summary = '## Pull Request Validation Summary\n\n';
+
+            for (const [jobName, jobData] of Object.entries(jobs)) {
+              const status = jobData.result === 'success' ? '✅' : '❌';
+              summary += `${status} ${jobName}: ${jobData.result}\n`;
+              if (jobData.result !== 'success') {
+                allPassed = false;
+              }
+            }
+
+            if (allPassed) {
+              summary += '\n✅ All validation checks passed!';
+            } else {
+              summary += '\n❌ Some validation checks failed. Please review.';
+            }
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: summary
+            });
