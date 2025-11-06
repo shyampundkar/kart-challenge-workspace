@@ -5,7 +5,7 @@ This document describes the implementation of the Order Food API based on the Op
 ## Implementation Overview
 
 The API has been implemented using:
-- **Go 1.23.2** - Programming language
+- **Go 1.25.4** - Programming language
 - **Gin Web Framework** - HTTP web framework
 - **UUID** - For generating unique order IDs
 - **In-memory storage** - For development/testing (can be replaced with database)

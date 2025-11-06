@@ -40,7 +40,7 @@ api_key: apitest
 
 ### Prerequisites
 
-- Go 1.23.2 or later
+- Go 1.25.4 or later
 - Docker (optional, for containerized deployment)
 
 ### Run with Go

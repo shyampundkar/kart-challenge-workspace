@@ -7,7 +7,7 @@ on:
     branches: [ main, develop ]
 
 env:
-  GO_VERSION: '1.23.2'
+  GO_VERSION: '1.25.4'
 
 jobs:
   # Detect which modules changed

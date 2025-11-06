@@ -27,15 +27,16 @@ The local CI script runs the same checks as GitHub Actions:
 6. ✅ **Advanced linting** - `staticcheck` with all checks
 7. ✅ **Inefficient assignments** - `ineffassign` checks
 8. ✅ **Spelling** - `misspell` checks
-9. ✅ **Build** - Compiles the binary
-10. ✅ **Tests with coverage** - Runs tests with race detection
-11. ✅ **Coverage report** - Generates HTML coverage report
+9. ✅ **Comprehensive linting** - `golangci-lint` with timeout 5m
+10. ✅ **Build** - Compiles the binary
+11. ✅ **Tests with coverage** - Runs tests with race detection
+12. ✅ **Coverage report** - Generates HTML coverage report
 
 ### Additional for order-food
-12. ✅ **Security scanning** - `gosec` security checks
-13. ✅ **Optimized build** - Builds with `-ldflags="-s -w"`
-14. ✅ **Benchmarks** - Runs performance benchmarks
-15. ✅ **Coverage threshold** - Warns if below 70%
+13. ✅ **Security scanning** - `gosec` security checks
+14. ✅ **Optimized build** - Builds with `-ldflags="-s -w"`
+15. ✅ **Benchmarks** - Runs performance benchmarks
+16. ✅ **Coverage threshold** - Warns if below 70%
 
 ## Output
 
@@ -76,6 +77,9 @@ go install github.com/gordonklaus/ineffassign@latest
 go install github.com/client9/misspell/cmd/misspell@latest
 go install golang.org/x/tools/cmd/goimports@latest
 go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+# Install golangci-lint
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
 ```
 
 ### 2. Run Checks for Each Module
@@ -97,6 +101,7 @@ go vet -v ./...
 staticcheck -checks=all ./...
 ineffassign ./...
 misspell -error .
+golangci-lint run --timeout=5m --out-format=colored-line-number
 
 # Security (order-food only)
 gosec -fmt=json -out=gosec-report.json ./...
