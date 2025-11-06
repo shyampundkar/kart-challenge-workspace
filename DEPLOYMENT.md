@@ -4,11 +4,11 @@ This guide explains how to build and deploy all three modules (database-migratio
 
 ## Prerequisites
 
-The deployment script will check for these dependencies and guide you through installation:
+The deployment script will check for these dependencies and automatically install what's missing:
 
-- **Docker** - Container runtime (required)
-- **kubectl** - Kubernetes CLI (required)
-- **Helm** - Kubernetes package manager (required)
+- **Docker** - Container runtime (required - must be installed manually)
+- **kubectl** - Kubernetes CLI (required - must be installed manually)
+- **Helm** - Kubernetes package manager (will be installed automatically if missing)
 - **minikube** - Local Kubernetes cluster (will be installed automatically if missing)
 
 ### Installing Prerequisites (if needed)

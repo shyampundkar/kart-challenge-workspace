@@ -37,6 +37,23 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to install Helm on macOS
+install_helm_mac() {
+    print_info "Installing Helm on macOS..."
+    if command_exists brew; then
+        brew install helm
+    else
+        print_info "Homebrew not found. Downloading Helm binary..."
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+}
+
+# Function to install Helm on Linux
+install_helm_linux() {
+    print_info "Installing Helm on Linux..."
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+}
+
 # Function to install minikube on macOS
 install_minikube_mac() {
     print_info "Installing minikube on macOS..."
@@ -85,10 +102,24 @@ check_dependencies() {
 
     # Check Helm
     if ! command_exists helm; then
-        print_error "Helm is not installed. Please install Helm first."
-        exit 1
+        print_warning "Helm is not installed. Installing..."
+        OS="$(uname -s)"
+        case "${OS}" in
+            Linux*)
+                install_helm_linux
+                ;;
+            Darwin*)
+                install_helm_mac
+                ;;
+            *)
+                print_error "Unsupported operating system: ${OS}"
+                exit 1
+                ;;
+        esac
+        print_success "Helm installed successfully"
+    else
+        print_success "Helm found"
     fi
-    print_success "Helm found"
 
     # Check minikube
     if ! command_exists minikube; then
@@ -137,6 +168,16 @@ build_images() {
     # Set Docker environment to use minikube's Docker daemon
     eval $(minikube docker-env)
 
+    # Fix Docker credential helper issue by temporarily disabling credsStore
+    # This is needed when Docker Desktop credential helper is not available in minikube's Docker daemon
+    export DOCKER_CONFIG=$(mktemp -d)
+    cat > "${DOCKER_CONFIG}/config.json" <<EOF
+{
+  "auths": {}
+}
+EOF
+    print_info "Using temporary Docker config to avoid credential helper issues"
+
     # Build database-migration
     print_info "Building database-migration image..."
     docker build -t database-migration:latest ./database-migration
@@ -151,6 +192,10 @@ build_images() {
     print_info "Building order-food image..."
     docker build -t order-food:latest ./order-food
     print_success "order-food image built"
+
+    # Clean up temporary Docker config
+    rm -rf "${DOCKER_CONFIG}"
+    unset DOCKER_CONFIG
 
     print_success "All images built successfully"
 }

@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -18,15 +18,18 @@ type Config struct {
 	ServiceName    string
 	ServiceVersion string
 	Environment    string
-	JaegerEndpoint string
+	OTLPEndpoint   string
 }
 
 // InitTracer initializes the OpenTelemetry tracer
 func InitTracer(config Config) (func(context.Context) error, error) {
-	// Create Jaeger exporter
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(config.JaegerEndpoint)))
+	// Create OTLP HTTP exporter for Jaeger
+	exp, err := otlptracehttp.New(context.Background(),
+		otlptracehttp.WithEndpoint(config.OTLPEndpoint),
+		otlptracehttp.WithInsecure(), // Use insecure for local development
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
 	// Create resource
@@ -61,9 +64,10 @@ func InitTracer(config Config) (func(context.Context) error, error) {
 
 // GetConfig returns telemetry configuration from environment variables
 func GetConfig(serviceName string) Config {
-	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")
-	if jaegerEndpoint == "" {
-		jaegerEndpoint = "http://localhost:14268/api/traces"
+	// OTLP endpoint for Jaeger (Jaeger supports OTLP on port 4318 for HTTP)
+	otlpEndpoint := os.Getenv("OTLP_ENDPOINT")
+	if otlpEndpoint == "" {
+		otlpEndpoint = "localhost:4318"
 	}
 
 	environment := os.Getenv("ENVIRONMENT")
@@ -80,6 +84,6 @@ func GetConfig(serviceName string) Config {
 		ServiceName:    serviceName,
 		ServiceVersion: serviceVersion,
 		Environment:    environment,
-		JaegerEndpoint: jaegerEndpoint,
+		OTLPEndpoint:   otlpEndpoint,
 	}
 }
