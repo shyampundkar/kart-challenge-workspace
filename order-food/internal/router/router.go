@@ -40,9 +40,7 @@ func SetupRouter(
 		// Order routes (auth required)
 		orderRoutes := api.Group("")
 		orderRoutes.Use(middleware.AuthMiddleware())
-		{
-			orderRoutes.POST("/order", orderHandler.PlaceOrder)
-		}
+		orderRoutes.POST("/order", orderHandler.PlaceOrder)
 	}
 
 	return router

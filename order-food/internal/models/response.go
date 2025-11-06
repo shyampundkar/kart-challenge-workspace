@@ -1,15 +1,15 @@
 package models
 
-// ApiResponse represents a standard API response
-type ApiResponse struct {
+// APIResponse represents a standard API response
+type APIResponse struct {
 	Code    int    `json:"code"`
 	Type    string `json:"type"`
 	Message string `json:"message"`
 }
 
 // ErrorResponse creates an error API response
-func ErrorResponse(code int, message string) ApiResponse {
-	return ApiResponse{
+func ErrorResponse(code int, message string) APIResponse {
+	return APIResponse{
 		Code:    code,
 		Type:    "error",
 		Message: message,
@@ -17,8 +17,8 @@ func ErrorResponse(code int, message string) ApiResponse {
 }
 
 // SuccessResponse creates a success API response
-func SuccessResponse(code int, message string) ApiResponse {
-	return ApiResponse{
+func SuccessResponse(code int, message string) APIResponse {
+	return APIResponse{
 		Code:    code,
 		Type:    "success",
 		Message: message,

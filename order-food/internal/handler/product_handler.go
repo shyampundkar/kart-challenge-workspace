@@ -37,8 +37,8 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 // @Produce json
 // @Param productId path int true "ID of product to return"
 // @Success 200 {object} models.Product
-// @Failure 400 {object} models.ApiResponse "Invalid ID supplied"
-// @Failure 404 {object} models.ApiResponse "Product not found"
+// @Failure 400 {object} models.APIResponse "Invalid ID supplied"
+// @Failure 404 {object} models.APIResponse "Product not found"
 // @Router /product/{productId} [get]
 func (h *ProductHandler) GetProduct(c *gin.Context) {
 	productID := c.Param("productId")
