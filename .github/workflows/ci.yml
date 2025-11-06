@@ -20,16 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dorny/paths-filter@v2
-        id: filter
-        with:
-          filters: |
-            database-migration:
-              - 'database-migration/**'
-            database-load:
-              - 'database-load/**'
-            order-food:
-              - 'order-food/**'
+     
 
   # Build and test database-migration
   build-database-migration:
