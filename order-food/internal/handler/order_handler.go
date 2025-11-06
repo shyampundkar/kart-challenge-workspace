@@ -26,10 +26,10 @@ func NewOrderHandler(service *service.OrderService) *OrderHandler {
 // @Produce json
 // @Param order body models.OrderReq true "Order request"
 // @Success 200 {object} models.Order
-// @Failure 400 {object} models.ApiResponse "Invalid input"
-// @Failure 401 {object} models.ApiResponse "Unauthorized"
-// @Failure 403 {object} models.ApiResponse "Forbidden"
-// @Failure 422 {object} models.ApiResponse "Validation exception"
+// @Failure 400 {object} models.APIResponse "Invalid input"
+// @Failure 401 {object} models.APIResponse "Unauthorized"
+// @Failure 403 {object} models.APIResponse "Forbidden"
+// @Failure 422 {object} models.APIResponse "Validation exception"
 // @Security ApiKeyAuth
 // @Router /order [post]
 func (h *OrderHandler) PlaceOrder(c *gin.Context) {

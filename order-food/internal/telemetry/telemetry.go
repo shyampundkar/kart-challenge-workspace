@@ -69,7 +69,7 @@ func InitTracer(config Config) (func(context.Context) error, error) {
 // InitMetrics initializes the OpenTelemetry metrics
 func InitMetrics(config Config) (func(context.Context) error, error) {
 	if !config.EnableMetrics {
-		return func(ctx context.Context) error { return nil }, nil
+		return func(_ context.Context) error { return nil }, nil
 	}
 
 	// Create Prometheus exporter
