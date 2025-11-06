@@ -2,8 +2,6 @@ module github.com/shyampundkar/kart-challenge-workspace/database-load
 
 go 1.25
 
-toolchain go1.25.4
-
 require (
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
