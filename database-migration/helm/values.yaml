@@ -1,0 +1,72 @@
+replicaCount: 1
+
+image:
+  repository: database-migration
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  enabled: false
+  type: ClusterIP
+  port: 80
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Job configuration for migration
+job:
+  enabled: true
+  restartPolicy: OnFailure
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+
+# Environment variables
+env: []
+  # - name: DATABASE_URL
+  #   value: "postgres://user:password@host:5432/dbname"
+
+# ConfigMap data
+configMap: {}
+
+# Secret data
+secrets: {}
