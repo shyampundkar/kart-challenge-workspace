@@ -107,7 +107,7 @@ jobs:
           echo "Coverage: $COVERAGE%"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./database-migration/coverage.out
           flags: database-migration
@@ -220,7 +220,7 @@ jobs:
           echo "Coverage: $COVERAGE%"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./database-load/coverage.out
           flags: database-load
@@ -369,7 +369,7 @@ jobs:
           fi
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./order-food/coverage.out
           flags: order-food
