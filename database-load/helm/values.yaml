@@ -1,0 +1,83 @@
+replicaCount: 1
+
+image:
+  repository: database-load
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  enabled: false
+  type: ClusterIP
+  port: 80
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Job configuration for data loading (one-time initial load)
+job:
+  enabled: true
+  restartPolicy: OnFailure
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+
+# CronJob configuration for periodic data refresh
+cronjob:
+  enabled: true
+  schedule: "0 */6 * * *"  # Every 6 hours (customize as needed)
+  concurrencyPolicy: Forbid  # Don't run concurrent jobs
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 2
+  restartPolicy: OnFailure
+  suspend: false  # Set to true to temporarily disable
+
+# Environment variables
+env: []
+  # - name: DATABASE_URL
+  #   value: "postgres://user:password@host:5432/dbname"
+
+# ConfigMap data
+configMap: {}
+
+# Secret data
+secrets: {}

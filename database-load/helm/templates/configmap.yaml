@@ -1,0 +1,10 @@
+{{- if .Values.configMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "database-load.fullname" . }}
+  labels:
+    {{- include "database-load.labels" . | nindent 4 }}
+data:
+  {{- toYaml .Values.configMap | nindent 2 }}
+{{- end }}
