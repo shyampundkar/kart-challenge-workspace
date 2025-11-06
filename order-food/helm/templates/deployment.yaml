@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "order-food.fullname" . }}
+  labels:
+    {{- include "order-food.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "order-food.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "order-food.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "order-food.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if or .Values.initContainers.databaseMigration.enabled .Values.initContainers.databaseLoad.enabled }}
+      initContainers:
+      {{- if .Values.initContainers.databaseMigration.enabled }}
+      - name: database-migration
+        image: "{{ .Values.initContainers.databaseMigration.image.repository }}:{{ .Values.initContainers.databaseMigration.image.tag }}"
+        imagePullPolicy: {{ .Values.initContainers.databaseMigration.image.pullPolicy }}
+        {{- with .Values.initContainers.databaseMigration.env }}
+        env:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.initContainers.databaseMigration.resources }}
+        resources:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.initContainers.databaseLoad.enabled }}
+      - name: database-load
+        image: "{{ .Values.initContainers.databaseLoad.image.repository }}:{{ .Values.initContainers.databaseLoad.image.tag }}"
+        imagePullPolicy: {{ .Values.initContainers.databaseLoad.image.pullPolicy }}
+        {{- with .Values.initContainers.databaseLoad.env }}
+        env:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.initContainers.databaseLoad.resources }}
+        resources:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            {{- toYaml .Values.livenessProbe.httpGet | nindent 12 }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            {{- toYaml .Values.readinessProbe.httpGet | nindent 12 }}
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+        {{- end }}
+        {{- with .Values.env }}
+        env:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,10 @@
+{{- if .Values.configMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "database-migration.fullname" . }}
+  labels:
+    {{- include "database-migration.labels" . | nindent 4 }}
+data:
+  {{- toYaml .Values.configMap | nindent 2 }}
+{{- end }}
