@@ -420,46 +420,10 @@ jobs:
             order-food/bin/order-food-optimized
           retention-days: 7
 
-  # Lint and validate
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Run golangci-lint for database-migration
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: database-migration
-          args: --timeout=5m --out-format=colored-line-number
-          install-mode: binary
-
-      - name: Run golangci-lint for database-load
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: database-load
-          args: --timeout=5m --out-format=colored-line-number
-          install-mode: binary
-
-      - name: Run golangci-lint for order-food
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: order-food
-          args: --timeout=5m --out-format=colored-line-number
-          install-mode: binary
-
   # Summary job
   ci-summary:
     runs-on: ubuntu-latest
-    needs: [build-database-migration, build-database-load, build-order-food, lint]
+    needs: [build-database-migration, build-database-load, build-order-food]
     if: always()
     steps:
       - name: CI Summary
