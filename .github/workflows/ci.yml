@@ -18,7 +18,7 @@ jobs:
       database-load: ${{ steps.filter.outputs.database-load }}
       order-food: ${{ steps.filter.outputs.order-food }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
      
 
@@ -32,7 +32,7 @@ jobs:
         working-directory: ./database-migration
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -146,7 +146,7 @@ jobs:
         working-directory: ./database-load
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -259,7 +259,7 @@ jobs:
         working-directory: ./order-food
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
