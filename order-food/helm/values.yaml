@@ -109,8 +109,8 @@ initContainers:
       tag: "latest"
       pullPolicy: IfNotPresent
     env:
-      - name: JAEGER_ENDPOINT
-        value: "http://jaeger:14268/api/traces"
+      - name: OTLP_ENDPOINT
+        value: "jaeger:4318"
       - name: ENVIRONMENT
         value: "kubernetes"
       - name: SERVICE_VERSION
@@ -129,8 +129,8 @@ initContainers:
       tag: "latest"
       pullPolicy: IfNotPresent
     env:
-      - name: JAEGER_ENDPOINT
-        value: "http://jaeger:14268/api/traces"
+      - name: OTLP_ENDPOINT
+        value: "jaeger:4318"
       - name: ENVIRONMENT
         value: "kubernetes"
       - name: SERVICE_VERSION

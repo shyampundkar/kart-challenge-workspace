@@ -57,7 +57,7 @@ func main() {
 	log.Printf("Products: http://localhost:%s/api/product", port)
 	log.Printf("Create Order: POST http://localhost:%s/api/order (requires api_key: apitest)", port)
 	log.Printf("Metrics: http://localhost:%s/metrics", port)
-	log.Printf("Jaeger: %s", config.JaegerEndpoint)
+	log.Printf("OTLP Endpoint: %s", config.OTLPEndpoint)
 
 	// Graceful shutdown
 	go func() {
