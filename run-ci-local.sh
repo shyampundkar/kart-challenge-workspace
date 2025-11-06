@@ -58,6 +58,12 @@ install_go_tools() {
         go install github.com/securego/gosec/v2/cmd/gosec@latest
     fi
 
+    if ! command -v golangci-lint &> /dev/null; then
+        print_info "Installing golangci-lint..."
+        # Install golangci-lint using the recommended method
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+    fi
+
     print_success "Go tools installed"
 }
 
@@ -124,6 +130,11 @@ run_module_checks() {
     print_info "Checking for misspellings..."
     misspell -error .
     print_success "misspell check passed"
+
+    # Run golangci-lint
+    print_info "Running golangci-lint..."
+    golangci-lint run --timeout=5m --out-format=colored-line-number
+    print_success "golangci-lint check passed"
 
     # Run gosec for order-food
     if [ "$module" == "order-food" ]; then
