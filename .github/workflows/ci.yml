@@ -438,6 +438,7 @@ jobs:
           version: latest
           working-directory: database-migration
           args: --timeout=5m --out-format=colored-line-number
+          install-mode: binary
 
       - name: Run golangci-lint for database-load
         uses: golangci/golangci-lint-action@v6
@@ -445,6 +446,7 @@ jobs:
           version: latest
           working-directory: database-load
           args: --timeout=5m --out-format=colored-line-number
+          install-mode: binary
 
       - name: Run golangci-lint for order-food
         uses: golangci/golangci-lint-action@v6
@@ -452,6 +454,7 @@ jobs:
           version: latest
           working-directory: order-food
           args: --timeout=5m --out-format=colored-line-number
+          install-mode: binary
 
   # Summary job
   ci-summary:
