@@ -1,0 +1,19 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "database-load.fullname" . }}-archive-pvc
+  labels:
+    {{- include "database-load.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.persistence.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.archive.size }}
+  selector:
+    matchLabels:
+      {{- include "database-load.labels" . | nindent 6 }}
+      volume-type: archive
+{{- end }}

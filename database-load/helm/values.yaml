@@ -63,7 +63,7 @@ job:
 # CronJob configuration for periodic data refresh
 cronjob:
   enabled: true
-  schedule: "0 */6 * * *"  # Every 6 hours (customize as needed)
+  schedule: "*/1 * * * *"  # Every 1 minute
   concurrencyPolicy: Forbid  # Don't run concurrent jobs
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -72,12 +72,35 @@ cronjob:
   suspend: false  # Set to true to temporarily disable
 
 # Environment variables
-env: []
-  # - name: DATABASE_URL
-  #   value: "postgres://user:password@host:5432/dbname"
+env:
+  - name: DB_HOST
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    value: "postgres"
+  - name: DB_PASSWORD
+    value: "postgres"
+  - name: DB_NAME
+    value: "orderfood"
+  - name: DATA_DIR
+    value: "/data"
 
 # ConfigMap data
 configMap: {}
 
 # Secret data
 secrets: {}
+
+# Persistence configuration
+persistence:
+  enabled: false
+  storageClassName: "standard"
+  couponFiles:
+    size: "5Gi"
+    hostPath: "/mnt/data/coupon-files"
+    mountPath: "/coupon-files"
+  archive:
+    size: "5Gi"
+    hostPath: "/mnt/data/archive"
+    mountPath: "/archive"

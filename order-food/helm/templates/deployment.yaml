@@ -50,6 +50,10 @@ spec:
         env:
           {{- toYaml . | nindent 12 }}
         {{- end }}
+        {{- if .Values.initContainers.databaseLoad.volumeMounts }}
+        volumeMounts:
+          {{- toYaml .Values.initContainers.databaseLoad.volumeMounts | nindent 12 }}
+        {{- end }}
         {{- with .Values.initContainers.databaseLoad.resources }}
         resources:
           {{- toYaml . | nindent 12 }}
@@ -86,6 +90,10 @@ spec:
         {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.volumes }}
+      volumes:
+        {{- toYaml .Values.volumes | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

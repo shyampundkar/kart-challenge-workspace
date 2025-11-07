@@ -30,6 +30,12 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/bin/database-load .
 
+# Copy data files
+COPY data/ /data/
+
+# Set environment variable for data directory
+ENV DATA_DIR=/data
+
 # Expose port if needed (adjust as necessary)
 # EXPOSE 8080
 

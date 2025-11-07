@@ -70,11 +70,21 @@ tolerations: []
 affinity: {}
 
 # Environment variables
-env: []
-  # - name: PORT
-  #   value: "8080"
-  # - name: DATABASE_URL
-  #   value: "postgres://user:password@host:5432/dbname"
+env:
+  - name: PORT
+    value: "8080"
+  - name: DB_HOST
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    value: "postgres"
+  - name: DB_PASSWORD
+    value: "postgres"
+  - name: DB_NAME
+    value: "orderfood"
+  - name: DB_SSLMODE
+    value: "disable"
 
 # ConfigMap data
 configMap: {}
@@ -138,7 +148,7 @@ initContainers:
         cpu: 100m
         memory: 128Mi
   databaseLoad:
-    enabled: true
+    enabled: false
     image:
       repository: database-load
       tag: "latest"
@@ -156,6 +166,8 @@ initContainers:
         value: "postgres"
       - name: DB_SSLMODE
         value: "disable"
+      - name: DATA_DIR
+        value: "/data"
     resources:
       limits:
         cpu: 500m
@@ -163,3 +175,6 @@ initContainers:
       requests:
         cpu: 100m
         memory: 128Mi
+
+# Pod-level volumes (shared across all containers and init containers)
+volumes: []
