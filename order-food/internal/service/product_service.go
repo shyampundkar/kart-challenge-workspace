@@ -20,6 +20,11 @@ func (s *ProductService) ListProducts() []models.Product {
 	return s.repo.GetAll()
 }
 
+// ListProductsPaginated returns paginated products with total count
+func (s *ProductService) ListProductsPaginated(limit, offset int) ([]models.Product, int, error) {
+	return s.repo.GetAllPaginated(limit, offset)
+}
+
 // GetProduct returns a single product by ID
 func (s *ProductService) GetProduct(id string) (models.Product, error) {
 	return s.repo.GetByID(id)

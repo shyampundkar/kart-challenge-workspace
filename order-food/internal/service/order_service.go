@@ -53,3 +53,13 @@ func (s *OrderService) PlaceOrder(req models.OrderReq) (models.Order, error) {
 func (s *OrderService) GetOrder(id string) (models.Order, error) {
 	return s.orderRepo.GetByID(id)
 }
+
+// CreateOrder creates a new order (alias for PlaceOrder)
+func (s *OrderService) CreateOrder(req models.OrderReq) (models.Order, error) {
+	return s.PlaceOrder(req)
+}
+
+// ListOrdersPaginated returns paginated orders with total count
+func (s *OrderService) ListOrdersPaginated(limit, offset int) ([]models.Order, int, error) {
+	return s.orderRepo.GetAll(limit, offset)
+}
