@@ -3,60 +3,47 @@ package main
 import (
 	"context"
 	"log"
-	"time"
+	"os"
 
-	"github.com/shyampundkar/kart-challenge-workspace/database-migration/internal/telemetry"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/shyampundkar/kart-challenge-workspace/database-migration/internal/migration"
 )
 
 func main() {
 	log.Println("Starting database migration service...")
 
-	// Initialize telemetry
-	config := telemetry.GetConfig("database-migration")
-	shutdown, err := telemetry.InitTracer(config)
-	if err != nil {
-		log.Fatalf("Failed to initialize telemetry: %v", err)
+	// Get database configuration from environment variables
+	dbConfig := migration.Config{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     getEnv("DB_PORT", "5432"),
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "postgres"),
+		DBName:   getEnv("DB_NAME", "orderfood"),
+		SSLMode:  getEnv("DB_SSLMODE", "disable"),
 	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := shutdown(ctx); err != nil {
-			log.Printf("Error shutting down telemetry: %v", err)
-		}
-	}()
 
-	// Get tracer
-	tracer := otel.Tracer("database-migration")
+	log.Printf("Connecting to database: %s@%s:%s/%s", dbConfig.User, dbConfig.Host, dbConfig.Port, dbConfig.DBName)
 
-	// Start root span
-	ctx, span := tracer.Start(context.Background(), "migration.execute")
-	defer span.End()
+	// Create migrator
+	migrator, err := migration.NewMigrator(dbConfig)
+	if err != nil {
+		log.Fatalf("Failed to create migrator: %v", err)
+	}
+	defer migrator.Close()
 
+	// Run migrations
 	log.Println("Running database migrations...")
-
-	// Simulate migration work with tracing
-	runMigrations(ctx, tracer)
+	ctx := context.Background()
+	if err := migrator.Run(ctx); err != nil {
+		log.Fatalf("Migration failed: %v", err)
+	}
 
 	log.Println("Database migration completed successfully")
 }
 
-func runMigrations(ctx context.Context, tracer trace.Tracer) {
-	// Example migration steps with tracing
-	_, span := tracer.Start(ctx, "migration.createTables")
-	defer span.End()
-
-	log.Println("Creating tables...")
-	time.Sleep(100 * time.Millisecond) // Simulate work
-	span.AddEvent("Tables created successfully")
-
-	_, span2 := tracer.Start(ctx, "migration.createIndexes")
-	defer span2.End()
-
-	log.Println("Creating indexes...")
-	time.Sleep(50 * time.Millisecond) // Simulate work
-	span2.AddEvent("Indexes created successfully")
-
-	log.Println("All migrations completed")
+// getEnv returns the value of an environment variable or a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

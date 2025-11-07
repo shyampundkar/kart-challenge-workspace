@@ -54,6 +54,15 @@ cleanup_deployments() {
         print_warning "database-load not found"
     fi
 
+    # Uninstall PostgreSQL
+    if helm list -n "${NAMESPACE}" | grep -q "postgres"; then
+        print_info "Uninstalling PostgreSQL..."
+        helm uninstall postgres -n "${NAMESPACE}"
+        print_success "PostgreSQL uninstalled"
+    else
+        print_warning "PostgreSQL not found"
+    fi
+
     # Note: database-migration and database-load init container are removed with order-food
     print_info "Note: database-migration and database-load init containers are removed with order-food"
 
@@ -62,7 +71,7 @@ cleanup_deployments() {
 
     echo ""
     print_info "Remaining resources in namespace ${NAMESPACE}:"
-    kubectl get all -n "${NAMESPACE}" | grep -E "database-migration|database-load|order-food" || print_info "No resources found"
+    kubectl get all -n "${NAMESPACE}" | grep -E "database-migration|database-load|order-food|postgres" || print_info "No resources found"
 
     echo ""
     print_info "Cleanup options:"

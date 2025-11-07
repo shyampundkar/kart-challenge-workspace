@@ -12,7 +12,6 @@ import (
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/repository"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/router"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/service"
-	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/telemetry"
 )
 
 func main() {
@@ -23,16 +22,6 @@ func main() {
 	}
 
 	log.Println("Starting Order Food API server...")
-
-	// Initialize telemetry
-	config := telemetry.GetConfig("order-food")
-	shutdownTelemetry, err := telemetry.InitTelemetry(config)
-	if err != nil {
-		log.Fatalf("Failed to initialize telemetry: %v", err)
-	}
-	defer func() {
-		telemetry.GracefulShutdown(shutdownTelemetry, 5*time.Second)
-	}()
 
 	// Initialize repositories
 	productRepo := repository.NewProductRepository()
@@ -47,7 +36,7 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService)
 	healthHandler := handler.NewHealthHandler()
 
-	// Setup router with telemetry
+	// Setup router
 	r := router.SetupRouter(productHandler, orderHandler, healthHandler)
 
 	// Start server
@@ -56,8 +45,6 @@ func main() {
 	log.Printf("API endpoint: http://localhost:%s/api", port)
 	log.Printf("Products: http://localhost:%s/api/product", port)
 	log.Printf("Create Order: POST http://localhost:%s/api/order (requires api_key: apitest)", port)
-	log.Printf("Metrics: http://localhost:%s/metrics", port)
-	log.Printf("OTLP Endpoint: %s", config.OTLPEndpoint)
 
 	// Graceful shutdown
 	go func() {
