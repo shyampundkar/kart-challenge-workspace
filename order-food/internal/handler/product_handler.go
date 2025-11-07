@@ -1,24 +1,26 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/models"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/service"
+	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/utils"
 )
 
 // ProductHandler handles product-related HTTP requests
 type ProductHandler struct {
-	service *service.ProductService
+	service service.ProductServiceInterface
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(service *service.ProductService) *ProductHandler {
+func NewProductHandler(service service.ProductServiceInterface) *ProductHandler {
 	return &ProductHandler{service: service}
 }
 
-// ListProducts handles GET /product
+// ListProducts handles GET /product with pagination and HATEOAS
 // @Summary List products
 // @Description Get all products available for order
 // @Tags product
@@ -26,11 +28,53 @@ func NewProductHandler(service *service.ProductService) *ProductHandler {
 // @Success 200 {array} models.Product
 // @Router /product [get]
 func (h *ProductHandler) ListProducts(c *gin.Context) {
-	products := h.service.ListProducts()
-	c.JSON(http.StatusOK, products)
+	// Parse pagination parameters
+	page := utils.ParseInt(c.Query("page"), 1)
+	perPage := utils.ParseInt(c.Query("perPage"), 10)
+
+	// Calculate offset
+	offset := (page - 1) * perPage
+
+	// Get paginated products
+	products, total, err := h.service.ListProductsPaginated(perPage, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "Failed to fetch products"))
+		return
+	}
+
+	// Add HATEOAS links to each product
+	productsWithLinks := make([]models.ProductWithLinks, len(products))
+	for i, product := range products {
+		productsWithLinks[i] = models.ProductWithLinks{
+			Product: product,
+			Links: []models.Link{
+				{Href: fmt.Sprintf("/api/product/%s", product.ID), Rel: "self", Method: "GET"},
+				{Href: "/api/product", Rel: "collection", Method: "GET"},
+			},
+		}
+	}
+
+	// Build pagination response
+	totalPages := (total + perPage - 1) / perPage
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	response := models.PaginatedResponse{
+		Data: productsWithLinks,
+		Pagination: models.PaginationMeta{
+			Page:       page,
+			PerPage:    perPage,
+			TotalPages: totalPages,
+			TotalItems: total,
+		},
+		Links: utils.BuildPaginationLinks(page, totalPages, "/api/product", perPage),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
-// GetProduct handles GET /product/:productId
+// GetProduct handles GET /product/:productId with HATEOAS
 // @Summary Find product by ID
 // @Description Returns a single product
 // @Tags product
@@ -54,5 +98,13 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, product)
+	response := models.HATEOASResponse{
+		Data: product,
+		Links: []models.Link{
+			{Href: fmt.Sprintf("/api/product/%s", productID), Rel: "self", Method: "GET"},
+			{Href: "/api/product", Rel: "collection", Method: "GET"},
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }

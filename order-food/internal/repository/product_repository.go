@@ -18,8 +18,15 @@ type ProductRepository struct {
 	db *sql.DB
 }
 
-// NewProductRepository creates a new product repository connected to PostgreSQL
-func NewProductRepository() *ProductRepository {
+// NewProductRepository creates a new product repository with an existing database connection
+func NewProductRepository(db *sql.DB) *ProductRepository {
+	return &ProductRepository{
+		db: db,
+	}
+}
+
+// NewProductRepositoryWithConnection creates a new product repository and establishes a connection
+func NewProductRepositoryWithConnection() *ProductRepository {
 	db, err := connectDB()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -94,6 +101,39 @@ func (r *ProductRepository) GetAll() []models.Product {
 	}
 
 	return products
+}
+
+// GetAllPaginated returns paginated products with total count
+func (r *ProductRepository) GetAllPaginated(limit, offset int) ([]models.Product, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get total count
+	var total int
+	countQuery := `SELECT COUNT(*) FROM products`
+	if err := r.db.QueryRowContext(ctx, countQuery).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("error counting products: %w", err)
+	}
+
+	// Get paginated results
+	query := `SELECT id, name, price, category FROM products ORDER BY id LIMIT $1 OFFSET $2`
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error querying products: %w", err)
+	}
+	defer rows.Close()
+
+	products := make([]models.Product, 0)
+	for rows.Next() {
+		var product models.Product
+		if err := rows.Scan(&product.ID, &product.Name, &product.Price, &product.Category); err != nil {
+			log.Printf("Error scanning product: %v", err)
+			continue
+		}
+		products = append(products, product)
+	}
+
+	return products, total, nil
 }
 
 // GetByID returns a product by ID
