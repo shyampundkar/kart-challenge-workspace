@@ -12,12 +12,12 @@ import (
 
 // OrderHandler handles order-related HTTP requests
 type OrderHandler struct {
-	service          *service.OrderService
-	promoCodeService *service.PromoCodeService
+	service          service.OrderServiceInterface
+	promoCodeService service.PromoCodeServiceInterface
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(service *service.OrderService, promoCodeService *service.PromoCodeService) *OrderHandler {
+func NewOrderHandler(service service.OrderServiceInterface, promoCodeService service.PromoCodeServiceInterface) *OrderHandler {
 	return &OrderHandler{
 		service:          service,
 		promoCodeService: promoCodeService,

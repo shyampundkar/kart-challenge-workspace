@@ -12,11 +12,11 @@ import (
 
 // ProductHandler handles product-related HTTP requests
 type ProductHandler struct {
-	service *service.ProductService
+	service service.ProductServiceInterface
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(service *service.ProductService) *ProductHandler {
+func NewProductHandler(service service.ProductServiceInterface) *ProductHandler {
 	return &ProductHandler{service: service}
 }
 
