@@ -1,4 +1,4 @@
-# Order Food Online - Microservices Food Ordering Platform
+# Food Ordering Microservices Platform
 
 A production-ready, cloud-native food ordering platform built with Go, featuring REST Level 3 HATEOAS APIs, microservices architecture, PostgreSQL persistence, and Kubernetes orchestration.
 
