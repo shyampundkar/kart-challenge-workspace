@@ -204,6 +204,19 @@ EOF
 deploy_with_helm() {
     print_info "Deploying applications with Helm..."
 
+    # Deploy PostgreSQL database
+    print_info "Deploying PostgreSQL database..."
+    helm upgrade --install postgres ./postgres/helm \
+        --namespace "${NAMESPACE}" \
+        --wait \
+        --timeout 5m
+    print_success "PostgreSQL database deployed"
+
+    # Wait for PostgreSQL to be ready
+    print_info "Waiting for PostgreSQL to be ready..."
+    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=postgres -n "${NAMESPACE}" --timeout=300s
+    print_success "PostgreSQL is ready"
+
     # Deploy database-load CronJob for periodic data refresh
     print_info "Deploying database-load CronJob..."
     helm upgrade --install database-load ./database-load/helm \
@@ -235,12 +248,12 @@ verify_deployments() {
     print_info "Verifying deployments..."
 
     echo ""
-    print_info "=== Checking CronJobs ==="
-    kubectl get cronjobs -n "${NAMESPACE}" | grep database-load || true
+    print_info "=== Checking Deployments ==="
+    kubectl get deployments -n "${NAMESPACE}"
 
     echo ""
-    print_info "=== Checking Deployments ==="
-    kubectl get deployments -n "${NAMESPACE}" | grep order-food || true
+    print_info "=== Checking CronJobs ==="
+    kubectl get cronjobs -n "${NAMESPACE}" | grep database-load || true
 
     echo ""
     print_info "=== Checking Pods ==="
@@ -248,7 +261,7 @@ verify_deployments() {
 
     echo ""
     print_info "=== Checking Services ==="
-    kubectl get services -n "${NAMESPACE}" | grep order-food || true
+    kubectl get services -n "${NAMESPACE}"
 
     echo ""
     print_info "=== Init Container Status ==="
@@ -265,7 +278,12 @@ display_access_info() {
     echo ""
     print_info "Then access the service at: http://localhost:8080"
     echo ""
+    print_info "To access PostgreSQL database, run:"
+    echo "  kubectl port-forward -n ${NAMESPACE} svc/postgres 5432:5432"
+    echo "  psql -h localhost -U postgres -d orderfood"
+    echo ""
     print_info "To view logs:"
+    echo "  PostgreSQL:                          kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=postgres"
     echo "  Database Migration (init container): kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c database-migration"
     echo "  Database Load (init container):      kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c database-load"
     echo "  Order Food (main container):         kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c order-food"
@@ -276,8 +294,11 @@ display_access_info() {
     echo "  View CronJob history:  kubectl get jobs -n ${NAMESPACE} -l app.kubernetes.io/name=database-load"
     echo "  Trigger manual run:    kubectl create job --from=cronjob/database-load manual-load-\$(date +%s) -n ${NAMESPACE}"
     echo ""
+    print_info "To check database schema:"
+    echo "  kubectl exec -it -n ${NAMESPACE} deployment/postgres -- psql -U postgres -d orderfood -c '\\dt'"
+    echo ""
     print_info "To uninstall:"
-    echo "  helm uninstall database-load order-food -n ${NAMESPACE}"
+    echo "  helm uninstall postgres database-load order-food -n ${NAMESPACE}"
     echo ""
     print_info "To stop minikube:"
     echo "  minikube stop"
