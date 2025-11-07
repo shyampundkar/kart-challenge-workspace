@@ -1,7 +1,0 @@
-1. Database migration job has been deployed to your cluster.
-
-2. Check the status of the migration job:
-   kubectl get jobs -l "app.kubernetes.io/name={{ include "database-migration.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
-
-3. View the migration logs:
-   kubectl logs -l "app.kubernetes.io/name={{ include "database-migration.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
