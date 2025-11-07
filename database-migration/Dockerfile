@@ -30,6 +30,9 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/bin/database-migration .
 
+# Copy migration SQL files
+COPY --from=builder /app/migrations ./migrations
+
 # Expose port if needed (adjust as necessary)
 # EXPOSE 8080
 
