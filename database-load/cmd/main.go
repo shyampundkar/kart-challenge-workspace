@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,14 +50,115 @@ func main() {
 	}
 	log.Println("Successfully connected to database")
 
-	// Load coupon data
+	// Load data
 	dataDir := getEnv("DATA_DIR", "/data")
 
+	// Load products first
+	if err := loadProducts(ctx, db, filepath.Join(dataDir, "products")); err != nil {
+		log.Fatalf("Failed to load products: %v", err)
+	}
+
+	// Load coupons
 	if err := loadCoupons(ctx, db, dataDir); err != nil {
 		log.Fatalf("Failed to load coupons: %v", err)
 	}
 
 	log.Println("Database load completed successfully")
+}
+
+func loadProducts(ctx context.Context, db *sql.DB, productsDir string) error {
+	log.Println("Loading products from CSV files...")
+
+	// Find all .csv files in the products directory
+	files, err := filepath.Glob(filepath.Join(productsDir, "*.csv"))
+	if err != nil {
+		return fmt.Errorf("failed to list product files: %w", err)
+	}
+
+	if len(files) == 0 {
+		log.Printf("No .csv files found in %s, skipping product load", productsDir)
+		return nil
+	}
+
+	totalProducts := 0
+
+	for _, filePath := range files {
+		fileName := filepath.Base(filePath)
+		log.Printf("Processing product file: %s", fileName)
+
+		count, err := loadProductsFromFile(ctx, db, filePath)
+		if err != nil {
+			return fmt.Errorf("failed to load products from %s: %w", fileName, err)
+		}
+
+		totalProducts += count
+		log.Printf("✓ Loaded %d products from %s", count, fileName)
+	}
+
+	log.Printf("✓ Total products loaded: %d", totalProducts)
+	return nil
+}
+
+func loadProductsFromFile(ctx context.Context, db *sql.DB, filePath string) (int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+
+	// Read header
+	_, err = reader.Read()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read CSV header: %w", err)
+	}
+
+	// Read all records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read CSV records: %w", err)
+	}
+
+	count := 0
+	for _, record := range records {
+		if len(record) < 4 {
+			log.Printf("Warning: Skipping invalid product record: %v", record)
+			continue
+		}
+
+		id := strings.TrimSpace(record[0])
+		name := strings.TrimSpace(record[1])
+		priceStr := strings.TrimSpace(record[2])
+		category := strings.TrimSpace(record[3])
+
+		price, err := strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			log.Printf("Warning: Invalid price '%s' for product '%s': %v", priceStr, name, err)
+			continue
+		}
+
+		// Insert product
+		query := `INSERT INTO products (id, name, price, category, created_at, updated_at)
+		          VALUES ($1, $2, $3, $4, NOW(), NOW())
+		          ON CONFLICT (id) DO UPDATE
+		          SET name = EXCLUDED.name,
+		              price = EXCLUDED.price,
+		              category = EXCLUDED.category,
+		              updated_at = NOW()`
+
+		ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err = db.ExecContext(ctxTimeout, query, id, name, price, category)
+		cancel()
+
+		if err != nil {
+			return count, fmt.Errorf("failed to insert product '%s': %w", name, err)
+		}
+
+		count++
+	}
+
+	return count, nil
 }
 
 func loadCoupons(ctx context.Context, db *sql.DB, dataDir string) error {

@@ -1,83 +1,161 @@
 package repository
 
 import (
+	"context"
+	"database/sql"
 	"errors"
-	"sync"
+	"fmt"
+	"log"
+	"os"
+	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/models"
 )
 
 // ProductRepository handles product data operations
 type ProductRepository struct {
-	products map[string]models.Product
-	mu       sync.RWMutex
+	db *sql.DB
 }
 
-// NewProductRepository creates a new product repository with sample data
+// NewProductRepository creates a new product repository connected to PostgreSQL
 func NewProductRepository() *ProductRepository {
-	repo := &ProductRepository{
-		products: make(map[string]models.Product),
+	db, err := connectDB()
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	repo.seedData()
-	return repo
+
+	return &ProductRepository{
+		db: db,
+	}
 }
 
-// seedData populates the repository with sample products
-func (r *ProductRepository) seedData() {
-	sampleProducts := []models.Product{
-		{ID: "1", Name: "Chicken Waffle", Price: 12.99, Category: "Waffle"},
-		{ID: "2", Name: "Belgian Waffle", Price: 10.99, Category: "Waffle"},
-		{ID: "3", Name: "Blueberry Pancakes", Price: 9.99, Category: "Pancakes"},
-		{ID: "4", Name: "Chocolate Pancakes", Price: 11.99, Category: "Pancakes"},
-		{ID: "5", Name: "Caesar Salad", Price: 8.99, Category: "Salad"},
-		{ID: "6", Name: "Greek Salad", Price: 9.49, Category: "Salad"},
-		{ID: "7", Name: "Margherita Pizza", Price: 13.99, Category: "Pizza"},
-		{ID: "8", Name: "Pepperoni Pizza", Price: 15.99, Category: "Pizza"},
-		{ID: "9", Name: "Cheeseburger", Price: 11.49, Category: "Burger"},
-		{ID: "10", Name: "Veggie Burger", Price: 10.49, Category: "Burger"},
+// connectDB establishes a connection to PostgreSQL
+func connectDB() (*sql.DB, error) {
+	dbHost := getEnv("DB_HOST", "localhost")
+	dbPort := getEnv("DB_PORT", "5432")
+	dbUser := getEnv("DB_USER", "postgres")
+	dbPassword := getEnv("DB_PASSWORD", "postgres")
+	dbName := getEnv("DB_NAME", "orderfood")
+	dbSSLMode := getEnv("DB_SSLMODE", "disable")
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	for _, product := range sampleProducts {
-		r.products[product.ID] = product
+	// Test connection with retries
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for i := 0; i < 10; i++ {
+		if err := db.PingContext(ctx); err == nil {
+			log.Println("Successfully connected to products database")
+			return db, nil
+		}
+		log.Printf("Waiting for database connection... (attempt %d/10)", i+1)
+		time.Sleep(2 * time.Second)
 	}
+
+	return nil, fmt.Errorf("failed to connect to database after retries")
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // GetAll returns all products
 func (r *ProductRepository) GetAll() []models.Product {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	products := make([]models.Product, 0, len(r.products))
-	for _, product := range r.products {
+	query := `SELECT id, name, price, category FROM products ORDER BY id`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		log.Printf("Error querying products: %v", err)
+		return []models.Product{}
+	}
+	defer rows.Close()
+
+	products := make([]models.Product, 0)
+	for rows.Next() {
+		var product models.Product
+		if err := rows.Scan(&product.ID, &product.Name, &product.Price, &product.Category); err != nil {
+			log.Printf("Error scanning product: %v", err)
+			continue
+		}
 		products = append(products, product)
 	}
+
 	return products
 }
 
 // GetByID returns a product by ID
 func (r *ProductRepository) GetByID(id string) (models.Product, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	product, exists := r.products[id]
-	if !exists {
+	query := `SELECT id, name, price, category FROM products WHERE id = $1`
+	var product models.Product
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&product.ID,
+		&product.Name,
+		&product.Price,
+		&product.Category,
+	)
+
+	if err == sql.ErrNoRows {
 		return models.Product{}, errors.New("product not found")
 	}
+	if err != nil {
+		return models.Product{}, fmt.Errorf("error querying product: %w", err)
+	}
+
 	return product, nil
 }
 
 // GetByIDs returns multiple products by their IDs
 func (r *ProductRepository) GetByIDs(ids []string) ([]models.Product, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	if len(ids) == 0 {
+		return []models.Product{}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Build query with placeholders
+	query := `SELECT id, name, price, category FROM products WHERE id = ANY($1)`
+
+	rows, err := r.db.QueryContext(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("error querying products: %w", err)
+	}
+	defer rows.Close()
 
 	products := make([]models.Product, 0, len(ids))
-	for _, id := range ids {
-		product, exists := r.products[id]
-		if !exists {
-			return nil, errors.New("product not found: " + id)
+	foundIDs := make(map[string]bool)
+
+	for rows.Next() {
+		var product models.Product
+		if err := rows.Scan(&product.ID, &product.Name, &product.Price, &product.Category); err != nil {
+			return nil, fmt.Errorf("error scanning product: %w", err)
 		}
 		products = append(products, product)
+		foundIDs[product.ID] = true
 	}
+
+	// Check if all requested IDs were found
+	for _, id := range ids {
+		if !foundIDs[id] {
+			return nil, errors.New("product not found: " + id)
+		}
+	}
+
 	return products, nil
 }

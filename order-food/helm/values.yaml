@@ -70,11 +70,21 @@ tolerations: []
 affinity: {}
 
 # Environment variables
-env: []
-  # - name: PORT
-  #   value: "8080"
-  # - name: DATABASE_URL
-  #   value: "postgres://user:password@host:5432/dbname"
+env:
+  - name: PORT
+    value: "8080"
+  - name: DB_HOST
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    value: "postgres"
+  - name: DB_PASSWORD
+    value: "postgres"
+  - name: DB_NAME
+    value: "orderfood"
+  - name: DB_SSLMODE
+    value: "disable"
 
 # ConfigMap data
 configMap: {}
