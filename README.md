@@ -1,6 +1,6 @@
 # Food Ordering Microservices Platform
 
-A production-ready, cloud-native food ordering platform built with Go, featuring REST Level 3 HATEOAS APIs, microservices architecture, PostgreSQL persistence, and Kubernetes orchestration.
+A cloud-native food ordering platform built with Go, featuring REST Level 3 HATEOAS APIs, microservices architecture, PostgreSQL persistence, and Kubernetes orchestration.
 
 ![Architecture](./ARCHITECTURE.png)
 
