@@ -217,8 +217,8 @@ deploy_with_helm() {
     kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=postgres -n "${NAMESPACE}" --timeout=300s
     print_success "PostgreSQL is ready"
 
-    # Deploy database-load CronJob for periodic data refresh
-    print_info "Deploying database-load CronJob..."
+    # Deploy database-load CronJob (runs every 1 minute)
+    print_info "Deploying database-load CronJob (runs every 1 minute)..."
     helm upgrade --install database-load ./database-load/helm \
         --namespace "${NAMESPACE}" \
         --set image.pullPolicy=Never \
@@ -226,19 +226,18 @@ deploy_with_helm() {
         --set cronjob.enabled=true \
         --wait \
         --timeout 5m
-    print_success "database-load CronJob deployed (runs periodically, failures won't impact order-food)"
+    print_success "database-load CronJob deployed (runs every 1 minute)"
 
-    # Deploy order-food (with database-migration and database-load as init containers)
+    # Deploy order-food (with database-migration as init container)
     print_info "Deploying order-food..."
-    print_info "Init containers will run in sequence: database-migration -> database-load"
+    print_info "Init container will run: database-migration"
     helm upgrade --install order-food ./order-food/helm \
         --namespace "${NAMESPACE}" \
         --set image.pullPolicy=Never \
         --set initContainers.databaseMigration.image.pullPolicy=Never \
-        --set initContainers.databaseLoad.image.pullPolicy=Never \
         --wait \
         --timeout 10m
-    print_success "order-food deployed (database-migration and database-load ran as init containers)"
+    print_success "order-food deployed (database-migration ran as init container)"
 
     print_success "All applications deployed successfully"
 }
@@ -285,7 +284,6 @@ display_access_info() {
     print_info "To view logs:"
     echo "  PostgreSQL:                          kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=postgres"
     echo "  Database Migration (init container): kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c database-migration"
-    echo "  Database Load (init container):      kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c database-load"
     echo "  Order Food (main container):         kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c order-food"
     echo "  Database Load (CronJob):             kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=database-load"
     echo ""

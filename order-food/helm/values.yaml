@@ -138,7 +138,7 @@ initContainers:
         cpu: 100m
         memory: 128Mi
   databaseLoad:
-    enabled: true
+    enabled: false
     image:
       repository: database-load
       tag: "latest"
@@ -156,6 +156,8 @@ initContainers:
         value: "postgres"
       - name: DB_SSLMODE
         value: "disable"
+      - name: DATA_DIR
+        value: "/data"
     resources:
       limits:
         cpu: 500m
@@ -163,3 +165,6 @@ initContainers:
       requests:
         cpu: 100m
         memory: 128Mi
+
+# Pod-level volumes (shared across all containers and init containers)
+volumes: []
