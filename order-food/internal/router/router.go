@@ -23,18 +23,18 @@ func SetupRouter(
 	router.GET("/ready", healthHandler.Ready)
 
 	// API v1 routes
-	api := router.Group("/api")
+	v1 := router.Group("/api/v1")
 	{
 		// Product routes (no auth required)
-		api.GET("/product", productHandler.ListProducts)
-		api.GET("/product/:productId", productHandler.GetProduct)
+		v1.GET("/products", productHandler.ListProducts)
+		v1.GET("/products/:productId", productHandler.GetProduct)
 
 		// Order routes (auth required)
-		orderRoutes := api.Group("")
+		orderRoutes := v1.Group("")
 		orderRoutes.Use(middleware.AuthMiddleware())
-		orderRoutes.GET("/order", orderHandler.ListOrders)
-		orderRoutes.GET("/order/:orderId", orderHandler.GetOrder)
-		orderRoutes.POST("/order", orderHandler.CreateOrder)
+		orderRoutes.GET("/orders", orderHandler.ListOrders)
+		orderRoutes.GET("/orders/:orderId", orderHandler.GetOrder)
+		orderRoutes.POST("/orders", orderHandler.CreateOrder)
 	}
 
 	return router

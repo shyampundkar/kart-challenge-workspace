@@ -33,16 +33,15 @@ service:
   targetPort: 8080
 
 ingress:
-  enabled: false
-  className: ""
+  enabled: true
+  className: "nginx"
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   hosts:
     - host: order-food.local
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
   tls: []
   #  - secretName: order-food-tls
   #    hosts:
@@ -86,12 +85,6 @@ env:
   - name: DB_SSLMODE
     value: "disable"
 
-# ConfigMap data
-configMap: {}
-
-# Secret data
-secrets: {}
-
 # Liveness probe
 livenessProbe:
   enabled: true
@@ -119,62 +112,3 @@ postgres:
   password: postgres
   sslmode: disable
 
-# Init containers
-initContainers:
-  databaseMigration:
-    enabled: true
-    image:
-      repository: database-migration
-      tag: "latest"
-      pullPolicy: IfNotPresent
-    env:
-      - name: DB_HOST
-        value: "postgres"
-      - name: DB_PORT
-        value: "5432"
-      - name: DB_NAME
-        value: "orderfood"
-      - name: DB_USER
-        value: "postgres"
-      - name: DB_PASSWORD
-        value: "postgres"
-      - name: DB_SSLMODE
-        value: "disable"
-    resources:
-      limits:
-        cpu: 500m
-        memory: 256Mi
-      requests:
-        cpu: 100m
-        memory: 128Mi
-  databaseLoad:
-    enabled: false
-    image:
-      repository: database-load
-      tag: "latest"
-      pullPolicy: IfNotPresent
-    env:
-      - name: DB_HOST
-        value: "postgres"
-      - name: DB_PORT
-        value: "5432"
-      - name: DB_NAME
-        value: "orderfood"
-      - name: DB_USER
-        value: "postgres"
-      - name: DB_PASSWORD
-        value: "postgres"
-      - name: DB_SSLMODE
-        value: "disable"
-      - name: DATA_DIR
-        value: "/data"
-    resources:
-      limits:
-        cpu: 500m
-        memory: 256Mi
-      requests:
-        cpu: 100m
-        memory: 128Mi
-
-# Pod-level volumes (shared across all containers and init containers)
-volumes: []

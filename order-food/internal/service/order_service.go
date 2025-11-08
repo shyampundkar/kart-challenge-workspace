@@ -36,9 +36,10 @@ func (s *OrderService) PlaceOrder(req models.OrderReq) (models.Order, error) {
 
 	// Create order
 	order := models.Order{
-		ID:       uuid.New().String(),
-		Items:    req.Items,
-		Products: products,
+		ID:         uuid.New().String(),
+		CouponCode: req.CouponCode,
+		Items:      req.Items,
+		Products:   products,
 	}
 
 	// Store order

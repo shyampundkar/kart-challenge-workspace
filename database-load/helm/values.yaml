@@ -63,7 +63,7 @@ job:
 # CronJob configuration for periodic data refresh
 cronjob:
   enabled: true
-  schedule: "*/1 * * * *"  # Every 1 minute
+  schedule: "0 0 * * *"  # Daily at midnight (00:00 UTC)
   concurrencyPolicy: Forbid  # Don't run concurrent jobs
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
