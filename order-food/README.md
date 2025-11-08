@@ -4,13 +4,16 @@ A RESTful API service for ordering food online, built with Go and the Gin web fr
 
 ## Features
 
-- List all available products
-- Get product details by ID
-- Place orders with authentication
-- Health check endpoints for Kubernetes
-- CORS support
-- Request logging
-- API key authentication
+- **HATEOAS REST Level 3 API**: Hypermedia-driven responses with resource navigation links
+- **Pagination Support**: Efficient data retrieval with customizable page sizes
+- **Promo Code Validation**: Smart validation against multiple data sources
+- **Product Management**: List and retrieve product information
+- **Order Management**: Create and manage orders with authentication
+- **Health Checks**: Readiness and liveness probes for Kubernetes
+- **CORS Support**: Cross-origin resource sharing enabled
+- **Request Logging**: Structured logging for all requests
+- **API Key Authentication**: Secure access to order endpoints
+- **Comprehensive Testing**: Unit tests with 32.3% coverage
 
 ## API Endpoints
 
@@ -21,12 +24,22 @@ A RESTful API service for ordering food online, built with Go and the Gin web fr
 
 ### Products
 
-- `GET /api/product` - List all products
-- `GET /api/product/:productId` - Get a specific product
+- `GET /api/products` - List all products (supports pagination)
+- `GET /api/products/:productId` - Get a specific product
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `perPage` - Items per page (default: 10, max: 100)
 
 ### Orders
 
-- `POST /api/order` - Place an order (requires authentication)
+- `GET /api/orders` - List all orders (requires authentication, supports pagination)
+- `GET /api/orders/:orderId` - Get a specific order (requires authentication)
+- `POST /api/orders` - Place an order with optional promo code (requires authentication)
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `perPage` - Items per page (default: 10, max: 100)
 
 ## Authentication
 
@@ -68,25 +81,49 @@ docker run -p 8080:8080 order-food:latest
 ## Environment Variables
 
 - `PORT` - Server port (default: 8080)
+- `DB_HOST` - PostgreSQL host (default: localhost)
+- `DB_PORT` - PostgreSQL port (default: 5432)
+- `DB_USER` - Database user (default: postgres)
+- `DB_PASSWORD` - Database password (default: postgres)
+- `DB_NAME` - Database name (default: orderfood)
+- `DB_SSLMODE` - SSL mode (default: disable)
 
 ## Example API Calls
 
 ### List all products
 
 ```bash
-curl http://localhost:8080/api/product
+curl http://localhost:8080/api/products
+```
+
+### List products with pagination
+
+```bash
+curl "http://localhost:8080/api/products?page=1&perPage=5"
 ```
 
 ### Get a specific product
 
 ```bash
-curl http://localhost:8080/api/product/1
+curl http://localhost:8080/api/products/1
+```
+
+### List all orders
+
+```bash
+curl -H "api_key: apitest" http://localhost:8080/api/orders
+```
+
+### Get a specific order
+
+```bash
+curl -H "api_key: apitest" http://localhost:8080/api/orders/{orderId}
 ```
 
 ### Place an order
 
 ```bash
-curl -X POST http://localhost:8080/api/order \
+curl -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
   -H "api_key: apitest" \
   -d '{
@@ -100,7 +137,7 @@ curl -X POST http://localhost:8080/api/order \
         "quantity": 1
       }
     ],
-    "couponCode": "SAVE10"
+    "couponCode": "HAPPYHRS"
   }'
 ```
 
@@ -170,6 +207,53 @@ kubectl port-forward svc/order-food 8080:80
 ```
 
 ## Testing
+
+### Run Unit Tests
+
+**Run all tests with coverage:**
+```bash
+./test.sh
+```
+
+This will:
+- Run all tests with race detection
+- Generate coverage report
+- Create HTML coverage report (coverage.html)
+- Display total coverage percentage
+
+**Run tests without coverage:**
+```bash
+go test ./... -v
+```
+
+**Run specific package tests:**
+```bash
+go test ./internal/handler -v
+go test ./internal/middleware -v
+go test ./internal/service -v
+```
+
+**View coverage in browser:**
+```bash
+./test.sh
+open coverage.html  # macOS
+xdg-open coverage.html  # Linux
+```
+
+### Test Coverage
+
+Current test coverage: **32.3%**
+
+| Component | Coverage |
+|-----------|----------|
+| Handlers  | 91.8%    |
+| Middleware| 100.0%   |
+| Services  | 37.9%    |
+| Utils     | 100.0%   |
+
+For detailed testing documentation, see [TESTING.md](TESTING.md).
+
+### API Testing
 
 Test the endpoints using the provided examples or import the OpenAPI specification (`api/openapi.yaml`) into tools like Postman or Swagger UI.
 

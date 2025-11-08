@@ -67,9 +67,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	response := models.HATEOASResponse{
 		Data: order,
 		Links: []models.Link{
-			{Href: fmt.Sprintf("/api/order/%s", order.ID), Rel: "self", Method: "GET"},
-			{Href: "/api/order", Rel: "collection", Method: "GET"},
-			{Href: "/api/product", Rel: "products", Method: "GET"},
+			{Href: fmt.Sprintf("/api/v1/orders/%s", order.ID), Rel: "self", Method: "GET"},
+			{Href: "/api/v1/orders", Rel: "collection", Method: "GET"},
+			{Href: "/api/v1/products", Rel: "products", Method: "GET"},
 		},
 	}
 
@@ -94,9 +94,9 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 	response := models.HATEOASResponse{
 		Data: order,
 		Links: []models.Link{
-			{Href: fmt.Sprintf("/api/order/%s", orderID), Rel: "self", Method: "GET"},
-			{Href: "/api/order", Rel: "collection", Method: "GET"},
-			{Href: "/api/product", Rel: "products", Method: "GET"},
+			{Href: fmt.Sprintf("/api/v1/orders/%s", orderID), Rel: "self", Method: "GET"},
+			{Href: "/api/v1/orders", Rel: "collection", Method: "GET"},
+			{Href: "/api/v1/products", Rel: "products", Method: "GET"},
 		},
 	}
 
@@ -125,8 +125,8 @@ func (h *OrderHandler) ListOrders(c *gin.Context) {
 		ordersWithLinks[i] = models.OrderWithLinks{
 			Order: order,
 			Links: []models.Link{
-				{Href: fmt.Sprintf("/api/order/%s", order.ID), Rel: "self", Method: "GET"},
-				{Href: "/api/order", Rel: "collection", Method: "GET"},
+				{Href: fmt.Sprintf("/api/v1/orders/%s", order.ID), Rel: "self", Method: "GET"},
+				{Href: "/api/v1/orders", Rel: "collection", Method: "GET"},
 			},
 		}
 	}
@@ -145,7 +145,7 @@ func (h *OrderHandler) ListOrders(c *gin.Context) {
 			TotalPages: totalPages,
 			TotalItems: total,
 		},
-		Links: utils.BuildPaginationLinks(page, totalPages, "/api/order", perPage),
+		Links: utils.BuildPaginationLinks(page, totalPages, "/api/v1/orders", perPage),
 	}
 
 	c.JSON(http.StatusOK, response)

@@ -49,22 +49,6 @@ spec:
             {{- end }}
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
-            {{- if .Values.persistence.enabled }}
-            volumeMounts:
-            - name: coupon-files
-              mountPath: {{ .Values.persistence.couponFiles.mountPath }}
-            - name: archive
-              mountPath: {{ .Values.persistence.archive.mountPath }}
-            {{- end }}
-          {{- if .Values.persistence.enabled }}
-          volumes:
-          - name: coupon-files
-            persistentVolumeClaim:
-              claimName: {{ include "database-load.fullname" . }}-coupon-files-pvc
-          - name: archive
-            persistentVolumeClaim:
-              claimName: {{ include "database-load.fullname" . }}-archive-pvc
-          {{- end }}
           {{- with .Values.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

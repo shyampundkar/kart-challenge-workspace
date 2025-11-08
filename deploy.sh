@@ -217,27 +217,45 @@ deploy_with_helm() {
     kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=postgres -n "${NAMESPACE}" --timeout=300s
     print_success "PostgreSQL is ready"
 
-    # Deploy database-load CronJob (runs every 1 minute)
-    print_info "Deploying database-load CronJob (runs every 1 minute)..."
+    # Deploy database-migration Job (runs once)
+    print_info "Deploying database-migration Job (runs once)..."
+    helm upgrade --install database-migration ./database-migration/helm \
+        --namespace "${NAMESPACE}" \
+        --set image.pullPolicy=Never \
+        --wait \
+        --timeout 5m
+    print_success "database-migration Job deployed and completed"
+
+    # Deploy database-load one-time Job for initial data load
+    print_info "Deploying database-load Job for initial data load..."
     helm upgrade --install database-load ./database-load/helm \
+        --namespace "${NAMESPACE}" \
+        --set image.pullPolicy=Never \
+        --set job.enabled=true \
+        --set cronjob.enabled=false \
+        --wait \
+        --timeout 5m
+    print_success "database-load Job deployed and completed"
+
+    # Upgrade to CronJob for periodic data refresh (runs daily at midnight)
+    print_info "Configuring database-load CronJob (runs daily at midnight)..."
+    helm upgrade database-load ./database-load/helm \
         --namespace "${NAMESPACE}" \
         --set image.pullPolicy=Never \
         --set job.enabled=false \
         --set cronjob.enabled=true \
         --wait \
         --timeout 5m
-    print_success "database-load CronJob deployed (runs every 1 minute)"
+    print_success "database-load CronJob configured (runs daily at midnight)"
 
-    # Deploy order-food (with database-migration as init container)
+    # Deploy order-food (without init container)
     print_info "Deploying order-food..."
-    print_info "Init container will run: database-migration"
     helm upgrade --install order-food ./order-food/helm \
         --namespace "${NAMESPACE}" \
         --set image.pullPolicy=Never \
-        --set initContainers.databaseMigration.image.pullPolicy=Never \
         --wait \
         --timeout 10m
-    print_success "order-food deployed (database-migration ran as init container)"
+    print_success "order-food deployed"
 
     print_success "All applications deployed successfully"
 }
@@ -249,6 +267,10 @@ verify_deployments() {
     echo ""
     print_info "=== Checking Deployments ==="
     kubectl get deployments -n "${NAMESPACE}"
+
+    echo ""
+    print_info "=== Checking Jobs ==="
+    kubectl get jobs -n "${NAMESPACE}" | grep database-migration || true
 
     echo ""
     print_info "=== Checking CronJobs ==="
@@ -263,8 +285,8 @@ verify_deployments() {
     kubectl get services -n "${NAMESPACE}"
 
     echo ""
-    print_info "=== Init Container Status ==="
-    kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=order-food -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.initContainerStatuses[*]}  {"- "}{.name}{": "}{.state}{"\n"}{end}{end}' || echo "No init containers found"
+    print_info "=== Database Migration Job Status ==="
+    kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=database-migration -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.status.phase}{"\n"}{end}' || echo "No database-migration pods found"
 }
 
 # Display access information
@@ -282,12 +304,13 @@ display_access_info() {
     echo "  psql -h localhost -U postgres -d orderfood"
     echo ""
     print_info "To view logs:"
-    echo "  PostgreSQL:                          kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=postgres"
-    echo "  Database Migration (init container): kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c database-migration"
-    echo "  Order Food (main container):         kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food -c order-food"
-    echo "  Database Load (CronJob):             kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=database-load"
+    echo "  PostgreSQL:                 kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=postgres"
+    echo "  Database Migration (Job):   kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=database-migration"
+    echo "  Order Food (main):          kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=order-food"
+    echo "  Database Load (CronJob):    kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=database-load"
     echo ""
-    print_info "To check CronJob:"
+    print_info "To check Jobs:"
+    echo "  View Migration Job:    kubectl get jobs -n ${NAMESPACE} -l app.kubernetes.io/name=database-migration"
     echo "  View CronJob:          kubectl get cronjobs -n ${NAMESPACE}"
     echo "  View CronJob history:  kubectl get jobs -n ${NAMESPACE} -l app.kubernetes.io/name=database-load"
     echo "  Trigger manual run:    kubectl create job --from=cronjob/database-load manual-load-\$(date +%s) -n ${NAMESPACE}"
@@ -296,7 +319,7 @@ display_access_info() {
     echo "  kubectl exec -it -n ${NAMESPACE} deployment/postgres -- psql -U postgres -d orderfood -c '\\dt'"
     echo ""
     print_info "To uninstall:"
-    echo "  helm uninstall postgres database-load order-food -n ${NAMESPACE}"
+    echo "  helm uninstall postgres database-migration database-load order-food -n ${NAMESPACE}"
     echo ""
     print_info "To stop minikube:"
     echo "  minikube stop"

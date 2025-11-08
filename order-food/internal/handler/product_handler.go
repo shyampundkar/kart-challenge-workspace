@@ -48,8 +48,8 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		productsWithLinks[i] = models.ProductWithLinks{
 			Product: product,
 			Links: []models.Link{
-				{Href: fmt.Sprintf("/api/product/%s", product.ID), Rel: "self", Method: "GET"},
-				{Href: "/api/product", Rel: "collection", Method: "GET"},
+				{Href: fmt.Sprintf("/api/v1/products/%s", product.ID), Rel: "self", Method: "GET"},
+				{Href: "/api/v1/products", Rel: "collection", Method: "GET"},
 			},
 		}
 	}
@@ -68,7 +68,7 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 			TotalPages: totalPages,
 			TotalItems: total,
 		},
-		Links: utils.BuildPaginationLinks(page, totalPages, "/api/product", perPage),
+		Links: utils.BuildPaginationLinks(page, totalPages, "/api/v1/products", perPage),
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -101,8 +101,8 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	response := models.HATEOASResponse{
 		Data: product,
 		Links: []models.Link{
-			{Href: fmt.Sprintf("/api/product/%s", productID), Rel: "self", Method: "GET"},
-			{Href: "/api/product", Rel: "collection", Method: "GET"},
+			{Href: fmt.Sprintf("/api/v1/products/%s", productID), Rel: "self", Method: "GET"},
+			{Href: "/api/v1/products", Rel: "collection", Method: "GET"},
 		},
 	}
 

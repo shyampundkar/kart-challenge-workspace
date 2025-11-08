@@ -30,14 +30,11 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/bin/database-load .
 
-# Copy data files
+# Copy data files into the image
 COPY data/ /data/
 
-# Set environment variable for data directory
+# Set data directory environment variable
 ENV DATA_DIR=/data
-
-# Expose port if needed (adjust as necessary)
-# EXPOSE 8080
 
 # Run the binary
 CMD ["./database-load"]
