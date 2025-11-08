@@ -1,5 +1,6 @@
--- Create coupons table with composite primary key
-CREATE TABLE IF NOT EXISTS coupons (
+-- Create coupons table as UNLOGGED for faster bulk loading
+-- UNLOGGED tables are not crash-safe but much faster for initial data load
+CREATE UNLOGGED TABLE IF NOT EXISTS coupons (
     coupon VARCHAR(255) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
     PRIMARY KEY (coupon, file_name)

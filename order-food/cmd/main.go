@@ -53,9 +53,9 @@ func main() {
 	// Start server
 	log.Printf("Server is running on port %s", port)
 	log.Printf("Health check: http://localhost:%s/health", port)
-	log.Printf("API endpoint: http://localhost:%s/api", port)
-	log.Printf("Products: http://localhost:%s/api/product", port)
-	log.Printf("Create Order: POST http://localhost:%s/api/order (requires api_key: apitest)", port)
+	log.Printf("API endpoint: http://localhost:%s/api/v1", port)
+	log.Printf("Products: http://localhost:%s/api/v1/products", port)
+	log.Printf("Create Order: POST http://localhost:%s/api/v1/orders (requires api_key: apitest)", port)
 
 	// Graceful shutdown
 	go func() {

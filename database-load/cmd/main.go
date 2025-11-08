@@ -15,11 +15,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	_ "github.com/lib/pq"
 )
 
 const (
-	batchSize = 1000 // Insert in batches for better performance
+	batchSize      = 50000 // Optimized batch size for maximum throughput
+	maxConcurrency = 8     // Increased concurrency for parallel processing
 )
 
 func main() {
@@ -34,11 +36,16 @@ func main() {
 	dbPassword := getEnv("DB_PASSWORD", "postgres")
 	dbName := getEnv("DB_NAME", "orderfood")
 
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+	// Connection string for sql.DB (used for products - keeping backward compatibility)
+	sqlConnStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
-	// Connect to database
-	db, err := sql.Open("postgres", connStr)
+	// Connection string for pgx (used for coupons with CopyFrom)
+	pgxConnStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		dbUser, dbPassword, dbHost, dbPort, dbName)
+
+	// Connect to database using sql.DB for products
+	db, err := sql.Open("postgres", sqlConnStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -58,9 +65,14 @@ func main() {
 		log.Fatalf("Failed to load products: %v", err)
 	}
 
-	// Load coupons
-	if err := loadCoupons(ctx, db, dataDir); err != nil {
+	// Load coupons using pgx CopyFrom
+	if err := loadCouponsWithPgx(ctx, pgxConnStr, dataDir); err != nil {
 		log.Fatalf("Failed to load coupons: %v", err)
+	}
+
+	// Convert coupons table to LOGGED for crash safety
+	if err := convertToLoggedTable(ctx, pgxConnStr); err != nil {
+		log.Printf("Warning: Failed to convert table to LOGGED: %v", err)
 	}
 
 	log.Println("Database load completed successfully")
@@ -161,8 +173,14 @@ func loadProductsFromFile(ctx context.Context, db *sql.DB, filePath string) (int
 	return count, nil
 }
 
-func loadCoupons(ctx context.Context, db *sql.DB, dataDir string) error {
-	log.Println("Loading coupons from text files...")
+// Coupon represents a coupon record for batch processing
+type Coupon struct {
+	Code     string
+	FileName string
+}
+
+func loadCouponsWithPgx(ctx context.Context, connStr, dataDir string) error {
+	log.Println("Loading coupons from text files using pgx CopyFrom...")
 
 	// Find all .txt files in the data directory
 	files, err := filepath.Glob(filepath.Join(dataDir, "*.txt"))
@@ -175,23 +193,32 @@ func loadCoupons(ctx context.Context, db *sql.DB, dataDir string) error {
 		return nil
 	}
 
-	log.Printf("Found %d files to process concurrently", len(files))
+	log.Printf("Found %d files to process", len(files))
 
-	// Use WaitGroup to wait for all goroutines to complete
+	// Optimize PostgreSQL for bulk loading
+	if err := optimizePostgresForBulkLoad(ctx, connStr); err != nil {
+		log.Printf("Warning: Failed to optimize PostgreSQL settings: %v", err)
+	}
+
+	// Create a semaphore to limit concurrency
+	semaphore := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
 	var totalCoupons atomic.Int64
 	errChan := make(chan error, len(files))
 
-	// Process files concurrently
+	// Process files concurrently with limited concurrency
 	for _, filePath := range files {
 		wg.Add(1)
+		semaphore <- struct{}{} // Acquire semaphore
+
 		go func(fp string) {
 			defer wg.Done()
+			defer func() { <-semaphore }() // Release semaphore
 
 			fileName := filepath.Base(fp)
 			log.Printf("Processing file: %s", fileName)
 
-			count, err := loadCouponsFromFile(ctx, db, fp, fileName)
+			count, err := loadCouponsFromFileWithPgx(ctx, connStr, fp, fileName)
 			if err != nil {
 				errChan <- fmt.Errorf("failed to load coupons from %s: %w", fileName, err)
 				return
@@ -215,7 +242,14 @@ func loadCoupons(ctx context.Context, db *sql.DB, dataDir string) error {
 	return nil
 }
 
-func loadCouponsFromFile(ctx context.Context, db *sql.DB, filePath, fileName string) (int, error) {
+func loadCouponsFromFileWithPgx(ctx context.Context, connStr, filePath, fileName string) (int, error) {
+	// Connect to database using pgx
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer conn.Close(ctx)
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to open file: %w", err)
@@ -227,8 +261,8 @@ func loadCouponsFromFile(ctx context.Context, db *sql.DB, filePath, fileName str
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 1024*1024)
 
-	var coupons []string
-	count := 0
+	var batch []Coupon
+	totalCount := 0
 
 	for scanner.Scan() {
 		coupon := strings.TrimSpace(scanner.Text())
@@ -236,65 +270,116 @@ func loadCouponsFromFile(ctx context.Context, db *sql.DB, filePath, fileName str
 			continue // Skip empty lines
 		}
 
-		coupons = append(coupons, coupon)
+		batch = append(batch, Coupon{
+			Code:     coupon,
+			FileName: fileName,
+		})
 
-		// Insert in batches
-		if len(coupons) >= batchSize {
-			if err := insertCouponsBatch(ctx, db, coupons, fileName); err != nil {
-				return count, err
+		// Insert batch when it reaches batchSize
+		if len(batch) >= batchSize {
+			count, err := insertCouponsBatchWithCopyFrom(ctx, conn, batch)
+			if err != nil {
+				return totalCount, fmt.Errorf("failed to insert batch: %w", err)
 			}
-			count += len(coupons)
-			coupons = coupons[:0] // Reset slice
+			totalCount += count
+			batch = batch[:0] // Reset slice
 
-			// Log progress every 10k coupons
-			if count%10000 == 0 {
-				log.Printf("  Progress: %d coupons inserted from %s", count, fileName)
+			// Log progress every 50k coupons
+			if totalCount%50000 == 0 {
+				log.Printf("  Progress: %d coupons inserted from %s", totalCount, fileName)
 			}
 		}
 	}
 
 	// Insert remaining coupons
-	if len(coupons) > 0 {
-		if err := insertCouponsBatch(ctx, db, coupons, fileName); err != nil {
-			return count, err
+	if len(batch) > 0 {
+		count, err := insertCouponsBatchWithCopyFrom(ctx, conn, batch)
+		if err != nil {
+			return totalCount, fmt.Errorf("failed to insert final batch: %w", err)
 		}
-		count += len(coupons)
+		totalCount += count
 	}
 
 	if err := scanner.Err(); err != nil {
-		return count, fmt.Errorf("error reading file: %w", err)
+		return totalCount, fmt.Errorf("error reading file: %w", err)
 	}
 
-	return count, nil
+	return totalCount, nil
 }
 
-func insertCouponsBatch(ctx context.Context, db *sql.DB, coupons []string, fileName string) error {
+func insertCouponsBatchWithCopyFrom(ctx context.Context, conn *pgx.Conn, coupons []Coupon) (int, error) {
 	if len(coupons) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	// Build bulk insert query
-	valueStrings := make([]string, 0, len(coupons))
-	valueArgs := make([]interface{}, 0, len(coupons)*2)
-	argPos := 1
-
-	for _, coupon := range coupons {
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d)", argPos, argPos+1))
-		valueArgs = append(valueArgs, coupon, fileName)
-		argPos += 2
+	// Use CopyFrom directly to the coupons table for maximum performance
+	// This is much faster than using a temp table
+	rows := make([][]interface{}, len(coupons))
+	for i, c := range coupons {
+		rows[i] = []interface{}{c.Code, c.FileName}
 	}
 
-	query := fmt.Sprintf("INSERT INTO coupons (coupon, file_name) VALUES %s ON CONFLICT DO NOTHING",
-		strings.Join(valueStrings, ","))
-
-	ctxTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	_, err := db.ExecContext(ctxTimeout, query, valueArgs...)
+	copyCount, err := conn.CopyFrom(
+		ctx,
+		pgx.Identifier{"coupons"},
+		[]string{"coupon", "file_name"},
+		pgx.CopyFromRows(rows),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to insert coupons batch: %w", err)
+		// If error is due to duplicate key, that's expected - log and continue
+		if strings.Contains(err.Error(), "duplicate key") {
+			log.Printf("Warning: Duplicate keys found in batch, some rows skipped")
+			return int(copyCount), nil
+		}
+		return 0, fmt.Errorf("failed to copy data: %w", err)
 	}
 
+	return int(copyCount), nil
+}
+
+// optimizePostgresForBulkLoad sets PostgreSQL parameters for optimal bulk loading performance
+func optimizePostgresForBulkLoad(ctx context.Context, connStr string) error {
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	optimizations := []string{
+		"SET synchronous_commit = OFF",           // Faster commits, acceptable for bulk load
+		"SET maintenance_work_mem = '1GB'",       // More memory for index maintenance
+		"SET checkpoint_timeout = '30min'",       // Less frequent checkpoints
+		"SET max_wal_size = '4GB'",               // Allow more WAL before checkpoint
+		"SET wal_buffers = '16MB'",               // Larger WAL buffers
+		"SET effective_cache_size = '2GB'",       // Hint about available cache
+	}
+
+	for _, sql := range optimizations {
+		if _, err := conn.Exec(ctx, sql); err != nil {
+			log.Printf("Warning: Failed to set optimization '%s': %v", sql, err)
+		}
+	}
+
+	log.Println("PostgreSQL optimized for bulk loading")
+	return nil
+}
+
+// convertToLoggedTable converts the UNLOGGED coupons table to a regular logged table
+// This should be called after bulk loading is complete
+func convertToLoggedTable(ctx context.Context, connStr string) error {
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	log.Println("Converting coupons table from UNLOGGED to LOGGED for crash safety...")
+	_, err = conn.Exec(ctx, "ALTER TABLE coupons SET LOGGED")
+	if err != nil {
+		return fmt.Errorf("failed to convert table to logged: %w", err)
+	}
+
+	log.Println("✓ Coupons table converted to LOGGED (crash-safe)")
 	return nil
 }
 

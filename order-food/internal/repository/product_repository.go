@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/shyampundkar/kart-challenge-workspace/order-food/internal/models"
 )
 
@@ -172,7 +172,7 @@ func (r *ProductRepository) GetByIDs(ids []string) ([]models.Product, error) {
 	// Build query with placeholders
 	query := `SELECT id, name, price, category FROM products WHERE id = ANY($1)`
 
-	rows, err := r.db.QueryContext(ctx, query, ids)
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, fmt.Errorf("error querying products: %w", err)
 	}

@@ -54,7 +54,7 @@ func TestProductHandler_ListProducts_Success(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/product?page=1&perPage=10", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products?page=1&perPage=10", nil)
 
 	// Execute
 	handler.ListProducts(c)
@@ -90,7 +90,7 @@ func TestProductHandler_ListProducts_WithCustomPagination(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/product?page=2&perPage=5", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products?page=2&perPage=5", nil)
 
 	// Execute
 	handler.ListProducts(c)
@@ -120,7 +120,7 @@ func TestProductHandler_ListProducts_DatabaseError(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/product", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products", nil)
 
 	// Execute
 	handler.ListProducts(c)
@@ -157,7 +157,7 @@ func TestProductHandler_GetProduct_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "productId", Value: "1"}}
-	c.Request = httptest.NewRequest("GET", "/api/product/1", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products/1", nil)
 
 	// Execute
 	handler.GetProduct(c)
@@ -172,7 +172,7 @@ func TestProductHandler_GetProduct_Success(t *testing.T) {
 	// Verify HATEOAS links
 	assert.NotNil(t, response.Links)
 	assert.Len(t, response.Links, 2)
-	assert.Equal(t, "/api/product/1", response.Links[0].Href)
+	assert.Equal(t, "/api/v1/products/1", response.Links[0].Href)
 	assert.Equal(t, "self", response.Links[0].Rel)
 
 	mockService.AssertExpectations(t)
@@ -190,7 +190,7 @@ func TestProductHandler_GetProduct_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "productId", Value: "999"}}
-	c.Request = httptest.NewRequest("GET", "/api/product/999", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products/999", nil)
 
 	// Execute
 	handler.GetProduct(c)
@@ -217,7 +217,7 @@ func TestProductHandler_GetProduct_EmptyID(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "productId", Value: ""}}
-	c.Request = httptest.NewRequest("GET", "/api/product/", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products/", nil)
 
 	// Execute
 	handler.GetProduct(c)
@@ -247,7 +247,7 @@ func TestProductHandler_ListProducts_HATEOASLinksPresent(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/product", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/products", nil)
 
 	// Execute
 	handler.ListProducts(c)

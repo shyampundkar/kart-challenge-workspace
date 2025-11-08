@@ -81,7 +81,7 @@ func TestOrderHandler_CreateOrder_Success_WithValidPromoCode(t *testing.T) {
 	body, _ := json.Marshal(orderReq)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/order", bytes.NewBuffer(body))
+	c.Request = httptest.NewRequest("POST", "/api/v1/orders", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	// Execute
@@ -127,7 +127,7 @@ func TestOrderHandler_CreateOrder_Success_WithoutPromoCode(t *testing.T) {
 	body, _ := json.Marshal(orderReq)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/order", bytes.NewBuffer(body))
+	c.Request = httptest.NewRequest("POST", "/api/v1/orders", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	// Execute
@@ -161,7 +161,7 @@ func TestOrderHandler_CreateOrder_InvalidPromoCode(t *testing.T) {
 	body, _ := json.Marshal(orderReq)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/order", bytes.NewBuffer(body))
+	c.Request = httptest.NewRequest("POST", "/api/v1/orders", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	// Execute
@@ -201,7 +201,7 @@ func TestOrderHandler_CreateOrder_PromoCodeValidationError(t *testing.T) {
 	body, _ := json.Marshal(orderReq)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/order", bytes.NewBuffer(body))
+	c.Request = httptest.NewRequest("POST", "/api/v1/orders", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	// Execute
@@ -229,7 +229,7 @@ func TestOrderHandler_CreateOrder_InvalidJSON(t *testing.T) {
 	// Create request with invalid JSON
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/order", bytes.NewBufferString("invalid json"))
+	c.Request = httptest.NewRequest("POST", "/api/v1/orders", bytes.NewBufferString("invalid json"))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	// Execute
@@ -260,7 +260,7 @@ func TestOrderHandler_GetOrder_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "orderId", Value: "order-123"}}
-	c.Request = httptest.NewRequest("GET", "/api/order/order-123", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/orders/order-123", nil)
 
 	// Execute
 	handler.GetOrder(c)
@@ -292,7 +292,7 @@ func TestOrderHandler_GetOrder_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "orderId", Value: "nonexistent"}}
-	c.Request = httptest.NewRequest("GET", "/api/order/nonexistent", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/orders/nonexistent", nil)
 
 	// Execute
 	handler.GetOrder(c)
@@ -326,7 +326,7 @@ func TestOrderHandler_ListOrders_Success(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/order?page=1&perPage=10", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/orders?page=1&perPage=10", nil)
 
 	// Execute
 	handler.ListOrders(c)
@@ -358,7 +358,7 @@ func TestOrderHandler_ListOrders_DatabaseError(t *testing.T) {
 	// Create request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/order", nil)
+	c.Request = httptest.NewRequest("GET", "/api/v1/orders", nil)
 
 	// Execute
 	handler.ListOrders(c)

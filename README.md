@@ -1,6 +1,6 @@
-# Order Food Online - Microservices Food Ordering Platform
+# Food Ordering Microservices Platform
 
-A production-ready, cloud-native food ordering platform built with Go, featuring REST Level 3 HATEOAS APIs, microservices architecture, PostgreSQL persistence, and Kubernetes orchestration.
+A cloud-native food ordering platform built with Go, featuring REST Level 3 HATEOAS APIs, microservices architecture, PostgreSQL persistence, and Kubernetes orchestration.
 
 ![Architecture](./ARCHITECTURE.png)
 
@@ -22,20 +22,22 @@ A production-ready, cloud-native food ordering platform built with Go, featuring
 
 ### Microservices Architecture
 - **order-food**: Main API service handling products and orders
-- **database-migration**: Schema management with golang-migrate
+- **database-migration**: Schema management running as one-time Kubernetes Job
 - **database-load**: Automated data loader running as Kubernetes CronJob
 - **PostgreSQL**: Persistent data storage with connection pooling
 
 ### Data Management
+- **Baked-in Data Files**: Coupon files embedded in Docker image for this assignment. Ideally it should be in S3 Bucket. Could use S3 (local stack for local development and testing).
 - **Concurrent Processing**: Parallel file loading using goroutines
 - **Idempotent Operations**: Safe to run multiple times without duplication
 - **Composite Keys**: Natural deduplication at database level
 - **JSON Storage**: Flexible schema for complex order data
+- **Scheduled Refresh**: CronJob runs daily at midnight to refresh data
 
 ### Cloud-Native Features
 - **Kubernetes Ready**: Helm charts for easy deployment
-- **Init Containers**: Automated database migrations on startup
-- **CronJob Integration**: Scheduled data loading every minute
+- **One-Time Jobs**: Database migration runs once on deployment
+- **CronJob Integration**: Scheduled data loading daily at midnight
 - **Health Checks**: Readiness and liveness probes
 - **Graceful Shutdown**: Proper signal handling
 
@@ -81,6 +83,7 @@ A production-ready, cloud-native food ordering platform built with Go, featuring
 - **Orchestration**: Kubernetes (Minikube for local)
 - **Package Manager**: Helm 3
 - **Database Driver**: lib/pq
+- **Testing**: Go testing package with testify assertions
 
 ## Project Structure
 
@@ -126,16 +129,20 @@ kart-challenge-workspace/
 │
 ├── database-load/               # Data loader
 │   ├── cmd/main.go
-│   ├── data/
+│   ├── data/                    # Coupon files (baked into Docker image)
 │   │   ├── products/            # Product CSV files
 │   │   └── *.txt                # Promo code files
 │   ├── Dockerfile
 │   └── go.mod
 │
+├── postgres/                    # PostgreSQL Helm chart
+│   └── helm/
+│
 ├── helm/                        # Kubernetes charts
 │   ├── postgres/
 │   ├── order-food/
-│   └── database-load/
+│   ├── database-load/
+│   └── database-migration/
 │
 ├── deploy.sh                    # Deployment automation
 └── ARCHITECTURE.png             # Architecture diagram
@@ -147,7 +154,7 @@ kart-challenge-workspace/
 
 #### List Products (with Pagination)
 ```http
-GET /api/product?page=1&perPage=10
+GET /api/v1/products?page=1&perPage=10
 ```
 
 **Response:**
@@ -160,8 +167,8 @@ GET /api/product?page=1&perPage=10
       "price": 12.99,
       "category": "Waffle",
       "_links": [
-        {"href": "/api/product/1", "rel": "self", "method": "GET"},
-        {"href": "/api/product", "rel": "collection", "method": "GET"}
+        {"href": "/api/v1/products/1", "rel": "self", "method": "GET"},
+        {"href": "/api/v1/products", "rel": "collection", "method": "GET"}
       ]
     }
   ],
@@ -172,16 +179,16 @@ GET /api/product?page=1&perPage=10
     "totalItems": 10
   },
   "_links": [
-    {"href": "/api/product?page=1&perPage=10", "rel": "self", "method": "GET"},
-    {"href": "/api/product?page=1&perPage=10", "rel": "first", "method": "GET"},
-    {"href": "/api/product?page=1&perPage=10", "rel": "last", "method": "GET"}
+    {"href": "/api/v1/products?page=1&perPage=10", "rel": "self", "method": "GET"},
+    {"href": "/api/v1/products?page=1&perPage=10", "rel": "first", "method": "GET"},
+    {"href": "/api/v1/products?page=1&perPage=10", "rel": "last", "method": "GET"}
   ]
 }
 ```
 
 #### Get Single Product
 ```http
-GET /api/product/:productId
+GET /api/v1/products/:productId
 ```
 
 **Response:**
@@ -194,8 +201,8 @@ GET /api/product/:productId
     "category": "Waffle"
   },
   "_links": [
-    {"href": "/api/product/1", "rel": "self", "method": "GET"},
-    {"href": "/api/product", "rel": "collection", "method": "GET"}
+    {"href": "/api/v1/products/1", "rel": "self", "method": "GET"},
+    {"href": "/api/v1/products", "rel": "collection", "method": "GET"}
   ]
 }
 ```
@@ -204,7 +211,7 @@ GET /api/product/:productId
 
 #### Create Order (with Promo Code)
 ```http
-POST /api/order
+POST /api/v1/orders
 Headers: api_key: apitest
 ```
 
@@ -227,22 +234,22 @@ Headers: api_key: apitest
     "products": [...]
   },
   "_links": [
-    {"href": "/api/order/uuid", "rel": "self", "method": "GET"},
-    {"href": "/api/order", "rel": "collection", "method": "GET"},
-    {"href": "/api/product", "rel": "products", "method": "GET"}
+    {"href": "/api/v1/orders/uuid", "rel": "self", "method": "GET"},
+    {"href": "/api/v1/orders", "rel": "collection", "method": "GET"},
+    {"href": "/api/v1/products", "rel": "products", "method": "GET"}
   ]
 }
 ```
 
 #### List Orders (with Pagination)
 ```http
-GET /api/order?page=1&perPage=10
+GET /api/v1/orders?page=1&perPage=10
 Headers: api_key: apitest
 ```
 
 #### Get Single Order
 ```http
-GET /api/order/:orderId
+GET /api/v1/orders/:orderId
 Headers: api_key: apitest
 ```
 
@@ -280,14 +287,34 @@ GET /ready
    ```
 
    This script will:
-   - Check all dependencies
+   - Check all dependencies (Docker, kubectl, Helm)
    - Build Docker images for all services
    - Deploy PostgreSQL database
-   - Deploy database-load CronJob
-   - Deploy order-food API with migration init container
+   - Deploy database-migration as one-time Job
+   - Deploy database-load Job (initial run) and CronJob (runs daily at midnight)
+   - Deploy order-food API
    - Verify all deployments
 
 4. **Access the API:**
+
+   **Option 1: Using Ingress (Recommended - No port forwarding needed)**
+
+   The deployment automatically enables Ingress with NGINX controller. To access:
+
+   a. Get Minikube IP:
+   ```bash
+   minikube ip
+   ```
+
+   b. Add to your `/etc/hosts` file:
+   ```bash
+   # Replace <MINIKUBE_IP> with the output from above command
+   echo "<MINIKUBE_IP> order-food.local" | sudo tee -a /etc/hosts
+   ```
+
+   c. Access the service at: http://order-food.local
+
+   **Option 2: Using Port Forwarding**
    ```bash
    kubectl port-forward -n default svc/order-food 8080:80
    ```
@@ -310,31 +337,56 @@ minikube image load database-load:latest
 minikube image load order-food:latest
 
 # 3. Deploy with Helm
-helm upgrade --install postgres ./helm/postgres -n default
-helm upgrade --install database-load ./helm/database-load -n default
-helm upgrade --install order-food ./helm/order-food -n default
+helm upgrade --install postgres ./postgres/helm -n default
+helm upgrade --install database-migration ./database-migration/helm -n default
+helm upgrade --install database-load ./database-load/helm -n default
+helm upgrade --install order-food ./order-food/helm -n default
 ```
 
 ## Testing
 
+**Note:** Replace `http://localhost:8080` with `http://order-food.local` if using Ingress.
+
 ### 1. Test Product Listing
 ```bash
-curl http://localhost:8080/api/product
+# Using Ingress
+curl http://order-food.local/api/v1/products
+
+# Using Port Forwarding
+curl http://localhost:8080/api/v1/products
 ```
 
 ### 2. Test Product Pagination
 ```bash
-curl "http://localhost:8080/api/product?page=1&perPage=5"
+# Using Ingress
+curl "http://order-food.local/api/v1/products?page=1&perPage=5"
+
+# Using Port Forwarding
+curl "http://localhost:8080/api/v1/products?page=1&perPage=5"
 ```
 
 ### 3. Test Single Product
 ```bash
-curl http://localhost:8080/api/product/1
+# Using Ingress
+curl http://order-food.local/api/v1/products/1
+
+# Using Port Forwarding
+curl http://localhost:8080/api/v1/products/1
 ```
 
 ### 4. Test Order Creation with Valid Promo Code
 ```bash
-curl -X POST http://localhost:8080/api/order \
+# Using Ingress
+curl -X POST http://order-food.local/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "api_key: apitest" \
+  -d '{
+    "couponCode": "HAPPYHRS",
+    "items": [{"productId": "1", "quantity": 2}]
+  }'
+
+# Using Port Forwarding
+curl -X POST http://localhost:8080/api/v1/orders \
   -H "Content-Type: application/json" \
   -H "api_key: apitest" \
   -d '{
@@ -345,7 +397,17 @@ curl -X POST http://localhost:8080/api/order \
 
 ### 5. Test Order Creation with Invalid Promo Code
 ```bash
-curl -X POST http://localhost:8080/api/order \
+# Using Ingress
+curl -X POST http://order-food.local/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "api_key: apitest" \
+  -d '{
+    "couponCode": "INVALID",
+    "items": [{"productId": "1", "quantity": 2}]
+  }'
+
+# Using Port Forwarding
+curl -X POST http://localhost:8080/api/v1/orders \
   -H "Content-Type: application/json" \
   -H "api_key: apitest" \
   -d '{
@@ -358,12 +420,22 @@ Expected: 400 Bad Request - "Invalid promo code"
 
 ### 6. Test Order Listing
 ```bash
-curl http://localhost:8080/api/order \
+# Using Ingress
+curl http://order-food.local/api/v1/orders \
+  -H "api_key: apitest"
+
+# Using Port Forwarding
+curl http://localhost:8080/api/v1/orders \
   -H "api_key: apitest"
 ```
 
 ### 7. Test Health Checks
 ```bash
+# Using Ingress
+curl http://order-food.local/health
+curl http://order-food.local/ready
+
+# Using Port Forwarding
 curl http://localhost:8080/health
 curl http://localhost:8080/ready
 ```
@@ -379,12 +451,12 @@ kubectl logs -n default -l app.kubernetes.io/name=postgres
 
 **Order Food API:**
 ```bash
-kubectl logs -n default -l app.kubernetes.io/name=order-food -c order-food
+kubectl logs -n default -l app.kubernetes.io/name=order-food
 ```
 
-**Database Migration (Init Container):**
+**Database Migration (Job):**
 ```bash
-kubectl logs -n default -l app.kubernetes.io/name=order-food -c database-migration
+kubectl logs -n default -l app.kubernetes.io/name=database-migration
 ```
 
 **Database Load CronJob:**
@@ -432,7 +504,7 @@ kubectl exec -it -n default deployment/postgres -- psql -U postgres -d orderfood
 ### Uninstall Applications
 
 ```bash
-helm uninstall postgres database-load order-food -n default
+helm uninstall postgres database-migration database-load order-food -n default
 ```
 
 ### Stop Minikube
@@ -482,9 +554,24 @@ minikube delete
 
 ### Running Tests
 
+**Run all tests:**
 ```bash
 cd order-food
-go test ./...
+./test.sh
+```
+
+**Run tests without coverage:**
+```bash
+cd order-food
+go test ./... -v
+```
+
+**Run specific package tests:**
+```bash
+cd order-food
+go test ./internal/handler -v
+go test ./internal/middleware -v
+go test ./internal/service -v
 ```
 
 ### Code Quality

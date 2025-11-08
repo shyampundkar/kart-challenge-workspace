@@ -159,13 +159,13 @@ func TestPromoCodeService_ValidatePromoCode_MoreThanTwoFiles(t *testing.T) {
 
 	service := NewPromoCodeService(db)
 
-	// Mock expectation: code exists in 3 files
+	// Mock expectation: code exists in 3 files (8 characters)
 	mock.ExpectQuery("SELECT COUNT\\(DISTINCT file_name\\)").
-		WithArgs("POPULAR").
+		WithArgs("POPULAR1").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 
 	// Test
-	valid, err := service.ValidatePromoCode("POPULAR")
+	valid, err := service.ValidatePromoCode("POPULAR1")
 
 	// Assert
 	assert.NoError(t, err)
