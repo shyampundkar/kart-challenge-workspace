@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.2
 )
 
 require (
